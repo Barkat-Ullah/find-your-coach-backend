@@ -7,9 +7,6 @@ export const prisma = new PrismaClient({
             otp: true,
             otpExpiry: true,
             isEmailVerified: true,
-            emailVerificationToken: true,
-            emailVerificationTokenExpires: true,
-            isAgreeWithTerms: true
         },
     }
 });

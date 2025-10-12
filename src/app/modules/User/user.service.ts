@@ -33,14 +33,8 @@ const getMyProfileFromDB = async (id: string) => {
       id: true,
       fullName: true,
       email: true,
-      phoneNumber: true,
       role: true,
       status: true,
-      describe: true,
-      city: true,
-      address: true,
-      profile: true,
-      
     },
   });
 
@@ -54,14 +48,8 @@ const getUserDetailsFromDB = async (id: string) => {
       id: true,
       fullName: true,
       email: true,
-      phoneNumber: true,
       role: true,
       status: true,
-      describe: true,
-      city: true,
-      address: true,
-      profile: true,
-      clientInfo: true,
     },
   });
   return user;
@@ -180,13 +168,14 @@ const updateUserIntoDb = async (req: Request, id: string) => {
   }
 
   // Step 2️⃣: Parse incoming data
-  const { fullName,  describe, city, address, phoneNumber } =
-    JSON.parse(req.body.data);
+  const { fullName, describe, city, address, phoneNumber } = JSON.parse(
+    req.body.data,
+  );
 
   // Step 3️⃣: Handle file upload (optional)
   const file = req.file as Express.Multer.File | undefined;
-  
-  let profileUrl: string | null = userInfo.profile;
+
+  let profileUrl: string | null = null;
 
   if (file) {
     const location = await uploadToDigitalOceanAWS(file);
@@ -198,23 +187,12 @@ const updateUserIntoDb = async (req: Request, id: string) => {
     where: { id },
     data: {
       fullName,
-      // businessType,
-      describe,
-      city,
-      address,
-      phoneNumber,
-      profile: profileUrl,
     },
     select: {
       id: true,
       fullName: true,
       email: true,
-      profile: true,
       role: true,
-      // businessType: true,
-      describe: true,
-      city: true,
-      address: true,
       status: true,
     },
   });
@@ -241,7 +219,6 @@ const updateMyProfileIntoDB = async (
   if (file) {
     const location = await uploadToDigitalOceanAWS(file);
     profileUrl = location.Location;
-    updateData.profile = profileUrl;
   }
 
   // Always update (with or without file)
@@ -252,13 +229,8 @@ const updateMyProfileIntoDB = async (
       id: true,
       fullName: true,
       email: true,
-      phoneNumber: true,
-      profile: true,
       role: true,
       status: true,
-      describe: true,
-      city: true,
-      address: true,
     },
   });
 

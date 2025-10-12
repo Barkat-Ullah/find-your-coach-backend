@@ -12,15 +12,43 @@ const loginWithOtp = catchAsync(async (req, res) => {
   });
 });
 
-const registerWithOtp = catchAsync(async (req, res) => {
-  const result = await AuthServices.registerWithOtpIntoDB(req.body);
+const registerAthlete = catchAsync(async (req, res) => {
+  const data = req.body?.data ? JSON.parse(req.body.data) : req.body;
+  const files = req.files as
+    | Record<string, Express.Multer.File[] | undefined>
+    | undefined;
+  const profileFile = files?.profile?.[0];
+
+  const result = await AuthServices.registerAthleteIntoDB(data, profileFile);
 
   sendResponse(res, {
     statusCode: httpStatus.CREATED,
-    message: 'User Created Successfully',
+    message: 'Athlete Created Successfully',
     data: result,
   });
 });
+
+const registerCoach = catchAsync(async (req, res) => {
+  const data = req.body?.data ? JSON.parse(req.body.data) : req.body;
+  const files = req.files as
+    | Record<string, Express.Multer.File[] | undefined>
+    | undefined;
+  const profileFile = files?.profile?.[0];
+  const certificateFile = files?.certificate?.[0];
+
+  const result = await AuthServices.registerCoachIntoDB(
+    data,
+    profileFile,
+    certificateFile,
+  );
+
+  sendResponse(res, {
+    statusCode: httpStatus.CREATED,
+    message: 'Coach Created Successfully',
+    data: result,
+  });
+});
+
 
 const logoutUser = catchAsync(async (req, res) => {
   // Clear the token cookie
@@ -96,7 +124,8 @@ const resetPassword = catchAsync(async (req, res) => {
 
 export const AuthControllers = {
   loginWithOtp,
-  registerWithOtp,
+  registerAthlete,
+  registerCoach,
   logoutUser,
   resendVerificationWithOtp,
   changePassword,

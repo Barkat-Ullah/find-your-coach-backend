@@ -15,6 +15,11 @@ import sendResponse from '../../utils/sendResponse';
 import { generateToken } from '../../utils/generateToken';
 import { insecurePrisma, prisma } from '../../utils/prisma';
 import emailSender from './../../utils/sendMail';
+import {
+  deleteFromDigitalOceanAWS,
+  uploadToDigitalOceanAWS,
+} from '../../utils/uploadToDigitalOceanAWS';
+import { toStringArray } from './Auth.constants';
 
 // ======================== LOGIN WITH OTP ========================
 const loginWithOtpFromDB = async (
@@ -72,40 +77,198 @@ const loginWithOtpFromDB = async (
   }
 };
 
-// ======================== REGISTER WITH OTP ========================
-const registerWithOtpIntoDB = async (payload: User) => {
-  const hashedPassword = await bcrypt.hash(payload.password, 12);
+const registerAthleteIntoDB = async (
+  payload: any,
+  profileFile?: Express.Multer.File,
+) => {
+  if (!payload?.email || !payload?.password || !payload?.fullName) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Missing required fields');
+  }
 
-  const isUserExist = await prisma.user.findUnique({
+  const exists = await prisma.user.findUnique({
     where: { email: payload.email },
     select: { id: true },
   });
+  if (exists) throw new AppError(httpStatus.CONFLICT, 'User already exists');
 
-  if (isUserExist)
-    throw new AppError(httpStatus.CONFLICT, 'User already exists');
-
+  const hashedPassword = await bcrypt.hash(payload.password, 12);
   const otp = generateOTP().toString();
 
-  const newUser = await prisma.user.create({
-    data: {
-      ...payload,
-      password: hashedPassword,
-      otp,
-      otpExpiry: otpExpiryTime(),
-    },
-  });
+  let profileUrl: string | undefined;
+  const uploadedUrlsToCleanup: string[] = [];
+
+  if (profileFile) {
+    try {
+      const up = await uploadToDigitalOceanAWS(profileFile);
+      profileUrl = up.Location;
+      uploadedUrlsToCleanup.push(profileUrl);
+    } catch (err) {
+      throw new AppError(
+        httpStatus.INTERNAL_SERVER_ERROR,
+        'Failed to upload profile image',
+      );
+    }
+  }
+
+  // normalize category -> string[]
+  const categories = toStringArray(payload.category);
 
   try {
-    const html = generateOtpEmail(otp);
-    await emailSender(newUser.email, html, 'OTP Verification');
-  } catch {
+    await prisma.$transaction(async tx => {
+      const newUser = await tx.user.create({
+        data: {
+          fullName: payload.fullName,
+          email: payload.email,
+          password: hashedPassword,
+          role: UserRoleEnum.ATHLETE,
+          otp,
+          otpExpiry: otpExpiryTime(),
+          isApproved: true, // athlete auto-approved
+        },
+      });
+
+      await tx.athlete.create({
+        data: {
+          fullName: payload.fullName,
+          email: payload.email,
+          profile: profileUrl ?? undefined,
+          phoneNumber: payload.phoneNumber ?? undefined,
+          category: categories,
+          address: payload.address ?? undefined,
+        },
+      });
+
+      const html = generateOtpEmail(otp);
+      await emailSender(newUser.email, html, 'OTP Verification');
+    });
+  } catch (err) {
+    // cleanup uploaded files if any
+    if (uploadedUrlsToCleanup.length) {
+      await Promise.all(
+        uploadedUrlsToCleanup.map(u =>
+          deleteFromDigitalOceanAWS(u).catch(() => null),
+        ),
+      );
+    }
     throw new AppError(
       httpStatus.INTERNAL_SERVER_ERROR,
-      'Failed to send OTP email',
+      'Failed to create athlete',
     );
   }
 
-  return 'Please check mail to verify your email';
+  return { message: 'Please check your email for OTP and verify your account' };
+};
+
+/** Coach registration */
+const registerCoachIntoDB = async (
+  payload: any,
+  profileFile?: Express.Multer.File,
+  certificateFile?: Express.Multer.File,
+) => {
+  if (!payload?.email || !payload?.password || !payload?.fullName) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Missing required fields');
+  }
+
+  const exists = await prisma.user.findUnique({
+    where: { email: payload.email },
+    select: { id: true },
+  });
+  if (exists) throw new AppError(httpStatus.CONFLICT, 'User already exists');
+
+  const hashedPassword = await bcrypt.hash(payload.password, 12);
+  const otp = generateOTP().toString();
+
+  let profileUrl: string | undefined;
+  let certificateUrl: string | undefined;
+  const uploadedUrlsToCleanup: string[] = [];
+
+  if (profileFile) {
+    try {
+      const up = await uploadToDigitalOceanAWS(profileFile);
+      profileUrl = up.Location;
+      uploadedUrlsToCleanup.push(profileUrl);
+    } catch (err) {
+      throw new AppError(
+        httpStatus.INTERNAL_SERVER_ERROR,
+        'Failed to upload profile image',
+      );
+    }
+  }
+
+  if (certificateFile) {
+    try {
+      const up = await uploadToDigitalOceanAWS(certificateFile);
+      certificateUrl = up.Location;
+      uploadedUrlsToCleanup.push(certificateUrl);
+    } catch (err) {
+      if (uploadedUrlsToCleanup.length) {
+        await Promise.all(
+          uploadedUrlsToCleanup.map(u =>
+            deleteFromDigitalOceanAWS(u).catch(() => null),
+          ),
+        );
+      }
+      throw new AppError(
+        httpStatus.INTERNAL_SERVER_ERROR,
+        'Failed to upload certificate',
+      );
+    }
+  }
+
+  // normalize expertise -> string[]
+  const expertiseArr = toStringArray(payload.expertise);
+
+  try {
+    await prisma.$transaction(async tx => {
+      const newUser = await tx.user.create({
+        data: {
+          fullName: payload.fullName,
+          email: payload.email,
+          password: hashedPassword,
+          role: UserRoleEnum.COACH,
+          otp,
+          otpExpiry: otpExpiryTime(),
+          isApproved: false, // admin approval required
+        },
+      });
+
+      await tx.coach.create({
+        data: {
+          fullName: payload.fullName,
+          email: payload.email,
+          profile: profileUrl ?? undefined,
+          phoneNumber: payload.phoneNumber ?? undefined,
+          experience: payload.experience ?? undefined,
+          location: payload.location ?? undefined,
+          expertise: expertiseArr,
+          certification: certificateUrl ?? payload.certification ?? undefined,
+          address: payload.address ?? undefined,
+          latitude: payload.latitude ? Number(payload.latitude) : undefined,
+          longitude: payload.longitude ? Number(payload.longitude) : undefined,
+        },
+      });
+
+      const html = generateOtpEmail(otp);
+      await emailSender(newUser.email, html, 'OTP Verification');
+    });
+  } catch (err) {
+    if (uploadedUrlsToCleanup.length) {
+      await Promise.all(
+        uploadedUrlsToCleanup.map(u =>
+          deleteFromDigitalOceanAWS(u).catch(() => null),
+        ),
+      );
+    }
+    throw new AppError(
+      httpStatus.INTERNAL_SERVER_ERROR,
+      'Failed to create coach',
+    );
+  }
+
+  return {
+    message:
+      'Please check your email for OTP and verify your account. Your coach account will be approved by admin.',
+  };
 };
 
 // ======================== COMMON OTP VERIFY (REGISTER + FORGOT) ========================
@@ -181,7 +344,7 @@ const verifyOtpCommon = async (payload: { email: string; otp: string }) => {
 const resendVerificationWithOtp = async (email: string) => {
   const user = await insecurePrisma.user.findFirstOrThrow({ where: { email } });
 
-  if (user.status === UserStatus.SUSPENDED) {
+  if (user.status === UserStatus.RESTRICTED) {
     throw new AppError(httpStatus.FORBIDDEN, 'User is Suspended');
   }
 
@@ -241,7 +404,7 @@ const forgetPassword = async (email: string) => {
     select: { email: true, status: true, id: true, otpExpiry: true, otp: true },
   });
 
-  if (userData.status === UserStatus.SUSPENDED) {
+  if (userData.status === UserStatus.RESTRICTED) {
     throw new AppError(httpStatus.BAD_REQUEST, 'User has been suspended');
   }
 
@@ -303,7 +466,8 @@ const resetPassword = async (payload: { password: string; email: string }) => {
 // ======================== EXPORT ========================
 export const AuthServices = {
   loginWithOtpFromDB,
-  registerWithOtpIntoDB,
+  registerCoachIntoDB,
+  registerAthleteIntoDB,
   resendVerificationWithOtp,
   changePassword,
   forgetPassword,

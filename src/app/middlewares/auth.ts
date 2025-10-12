@@ -53,13 +53,10 @@ const auth = <T extends readonly (UserRoleEnum | 'ANY')[]>(
       if (!user.isEmailVerified) {
         throw new AppError(httpStatus.UNAUTHORIZED, 'You are not verified!');
       }
-      if (user.status === UserStatus.SUSPENDED) {
+      if (user.status === UserStatus.RESTRICTED) {
         throw new AppError(httpStatus.UNAUTHORIZED, 'You are suspended!');
       }
 
-      if (user?.profile) {
-        verifyUserToken.profile = user?.profile;
-      }
 
       req.user = verifyUserToken;
       if (roles.includes('ANY')) {

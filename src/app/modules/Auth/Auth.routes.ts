@@ -4,18 +4,31 @@ import auth from '../../middlewares/auth';
 import { UserRoleEnum } from '@prisma/client';
 import { authValidation } from './Auth.validation';
 import { AuthControllers } from './Auth.controller';
-import clientInfoParser from '../../middlewares/clientInfoPerser';
+import { fileUploader } from '../../utils/fileUploader';
 
 const router = express.Router();
 
 router.post(
   '/login',
-  clientInfoParser,
   validateRequest.body(authValidation.loginUser),
   AuthControllers.loginWithOtp,
 );
 
-router.post('/register', clientInfoParser, AuthControllers.registerWithOtp);
+router.post(
+  '/register/athlete',
+  fileUploader.upload.fields([{ name: 'profile', maxCount: 1 }]),
+  AuthControllers.registerAthlete,
+);
+
+router.post(
+  '/register/coach',
+  fileUploader.upload.fields([
+    { name: 'profile', maxCount: 1 },
+    { name: 'certificate', maxCount: 1 },
+  ]),
+  AuthControllers.registerCoach,
+);
+
 router.post('/logout', AuthControllers.logoutUser);
 
 router.post('/verify-email-with-otp', AuthControllers.verifyOtpCommon);
@@ -27,7 +40,7 @@ router.post(
 
 router.post(
   '/change-password',
-  auth(UserRoleEnum.USER, UserRoleEnum.ADMIN),
+  // auth(UserRoleEnum.USER, UserRoleEnum.ADMIN),
   AuthControllers.changePassword,
 );
 

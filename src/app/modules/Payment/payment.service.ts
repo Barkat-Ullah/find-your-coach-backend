@@ -25,14 +25,13 @@ const getAllPayments = async (query: Record<string, any>) => {
       userId: true,
       paymentMethodType: true,
       createdAt: true,
-      updatedAt:true,
+      updatedAt: true,
       status: true,
       stripeCustomerId: true,
       stripePaymentId: true,
       stripeSessionId: true,
       user: {
         select: {
-          profile: true,
           fullName: true,
           email: true,
         },
@@ -63,7 +62,6 @@ const singleTransactionHistory = async (query: {
       status: true,
       user: {
         select: {
-          profile: true,
           fullName: true,
           email: true,
         },
@@ -92,12 +90,9 @@ const singleTransactionHistoryBySessionId = async (query: {
       stripeSessionId: true,
       currency: true,
       status: true,
-
       user: {
         select: {
-          profile: true,
           fullName: true,
-
           email: true,
         },
       },

@@ -1,49 +1,3 @@
-// import { UserRoleEnum } from '@prisma/client';
-// import * as bcrypt from 'bcrypt';
-// import config from '../../config';
-// import { prisma } from '../utils/prisma';
-
-// const superAdminData = {
-//   firstName: 'Super',
-//   lastName: 'Admin',
-//   email: 'admin@gmail.com',
-//   password: '123456',
-//   phoneNumber: '01821558090',
-//   role: UserRoleEnum.SUPERADMIN,
-//   isAgreeWithTerms: true,
-//   isEmailVerified: true,
-// };
-
-// const seedSuperAdmin = async () => {
-//   try {
-//     // Check if a super admin already exists
-//     const isSuperAdminExists = await prisma.user.findFirst({
-//       where: {
-//         role: UserRoleEnum.SUPERADMIN,
-//       },
-//     });
-
-//     // If not, create one
-//     if (!isSuperAdminExists) {
-//       superAdminData.password = await bcrypt.hash(
-//         config.super_admin_password as string,
-//         Number(config.bcrypt_salt_rounds) || 12,
-//       );
-//       await prisma.user.create({
-//         data: superAdminData,
-//       });
-//       console.log('Super Admin created successfully.');
-//     } else {
-//       return;
-//       //   console.log("Super Admin already exists.");
-//     }
-//   } catch (error) {
-//     console.error('Error seeding Super Admin:', error);
-//   }
-// };
-
-// export default seedSuperAdmin;
-
 import { UserRoleEnum } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import config from '../../config';
@@ -57,7 +11,7 @@ const adminData = {
   role: UserRoleEnum.ADMIN,
   isAgreeWithTerms: true,
   isEmailVerified: true,
-  // isApproved: true,
+  isApproved: true, // Added to match schema default
 };
 
 const seedSuperAdmin = async () => {
@@ -71,14 +25,43 @@ const seedSuperAdmin = async () => {
 
     // If not, create one
     if (!isSuperAdminExists) {
-      adminData.password = await bcrypt.hash(
-        config.super_admin_password as string,
+      // Hash the password
+      const hashedPassword = await bcrypt.hash(
+        config.super_admin_password || adminData.password, // Use config password or fallback to adminData
         Number(config.bcrypt_salt_rounds) || 12,
       );
-      await prisma.user.create({
-        data: adminData,
+
+      // Create User and associated Admin record in a transaction
+      await prisma.$transaction(async tx => {
+        // Create User record
+        const newUser = await tx.user.create({
+          data: {
+            fullName: adminData.fullName,
+            email: adminData.email,
+            password: hashedPassword,
+            role: adminData.role,
+            isEmailVerified: adminData.isEmailVerified,
+            isApproved: adminData.isApproved,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        });
+
+        // Create Admin record linked to the User
+        await tx.admin.create({
+          data: {
+            fullName: adminData.fullName,
+            email: adminData.email,
+            contactNumber: adminData.phoneNumber,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        });
+
+        console.log(
+          '✅ Super Admin and associated Admin record created successfully.',
+        );
       });
-      console.log('✅ Super Admin created successfully.');
     } else {
       console.log('❌ Super Admin already exists.');
     }

@@ -10,12 +10,12 @@ const router = express.Router();
 
 router.get(
   '/',
-  auth(UserRoleEnum.ADMIN, UserRoleEnum.USER),
+  // auth(UserRoleEnum.ADMIN, UserRoleEnum.USER),
   UserControllers.getAllUsers,
 );
 router.get(
   '/me',
-  auth(UserRoleEnum.ADMIN, UserRoleEnum.USER),
+  // auth(UserRoleEnum.ADMIN, UserRoleEnum.USER),
   UserControllers.getMyProfile,
 );
 router.get('/:id', auth('ANY'), UserControllers.getUserDetails);
@@ -57,7 +57,7 @@ router.put(
 
 router.put(
   '/update-profile',
-  auth(UserRoleEnum.ADMIN, UserRoleEnum.USER),
+  // auth(UserRoleEnum.ADMIN, UserRoleEnum.USER),
   upload.single('file'),
   UserControllers.updateMyProfile,
 );
