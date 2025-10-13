@@ -40,7 +40,7 @@ router.post(
 
 router.post(
   '/change-password',
-  // auth(UserRoleEnum.USER, UserRoleEnum.ADMIN),
+  auth(UserRoleEnum.ATHLETE, UserRoleEnum.COACH, UserRoleEnum.ADMIN),
   AuthControllers.changePassword,
 );
 

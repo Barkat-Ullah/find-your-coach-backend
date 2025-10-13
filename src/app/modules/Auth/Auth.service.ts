@@ -123,7 +123,7 @@ const registerAthleteIntoDB = async (
           role: UserRoleEnum.ATHLETE,
           otp,
           otpExpiry: otpExpiryTime(),
-          isApproved: true, // athlete auto-approved
+          isApproved: true, 
         },
       });
 
@@ -228,7 +228,7 @@ const registerCoachIntoDB = async (
           role: UserRoleEnum.COACH,
           otp,
           otpExpiry: otpExpiryTime(),
-          isApproved: false, // admin approval required
+          isApproved: false,
         },
       });
 
@@ -239,12 +239,14 @@ const registerCoachIntoDB = async (
           profile: profileUrl ?? undefined,
           phoneNumber: payload.phoneNumber ?? undefined,
           experience: payload.experience ?? undefined,
+          price:payload.price,
           location: payload.location ?? undefined,
           expertise: expertiseArr,
           certification: certificateUrl ?? payload.certification ?? undefined,
           address: payload.address ?? undefined,
           latitude: payload.latitude ? Number(payload.latitude) : undefined,
           longitude: payload.longitude ? Number(payload.longitude) : undefined,
+          specialtyId: payload.specialtyId,
         },
       });
 

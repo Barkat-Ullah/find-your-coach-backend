@@ -52,7 +52,7 @@ const seedSuperAdmin = async () => {
           data: {
             fullName: adminData.fullName,
             email: adminData.email,
-            contactNumber: adminData.phoneNumber,
+            phoneNumber: adminData.phoneNumber,
             createdAt: new Date(),
             updatedAt: new Date(),
           },

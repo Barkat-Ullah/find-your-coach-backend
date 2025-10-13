@@ -1,0 +1,18 @@
+model Review {
+    id        String @id @default(auto()) @map("_id") @db.ObjectId
+    bookingId String @db.ObjectId @unique
+    athleteId String @db.ObjectId
+    coachId   String @db.ObjectId
+
+    rating  Float
+    comment String
+
+    booking   Booking  @relation(fields: [bookingId], references: [id])
+    athlete   Athlete  @relation(fields: [athleteId], references: [id])
+    coach     Coach    @relation(fields: [coachId], references: [id])
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@map("reviews")
+}
+             

@@ -10,24 +10,54 @@ import { uploadToDigitalOceanAWS } from '../../utils/uploadToDigitalOceanAWS';
 interface UserWithOptionalPassword extends Omit<User, 'password'> {
   password?: string;
 }
+
 const getAllUsersFromDB = async (query: any) => {
   const usersQuery = new QueryBuilder<typeof prisma.user>(prisma.user, query);
-  usersQuery.where({ role: 'USER' });
+
+  usersQuery.where({
+    role: {
+      in: ['COACH', 'ATHLETE'],
+    },
+  });
+
   const result = await usersQuery
-    .search(['fullName', 'email', 'address', 'city'])
+    .search(['fullName', 'email', 'address'])
     .filter()
     .sort()
     .fields()
     .exclude()
     .paginate()
+    .customFields({
+      id: true,
+      fullName: true,
+      email: true,
+      role: true,
+      status: true,
+    })
     .execute();
-  return result;
+
+  const usersWithCount = await Promise.all(
+    result.data.map(async (user: any) => {
+      const bookingCount = await prisma.booking.count({
+        where: {
+          OR: [{ coachId: user.id }, { athleteId: user.id }],
+        },
+      });
+      return { ...user, bookingCount };
+    }),
+  );
+
+  return {
+    ...result,
+    data: usersWithCount,
+  };
 };
 
 const getMyProfileFromDB = async (id: string) => {
-  const Profile = await prisma.user.findUniqueOrThrow({
+  const user = await prisma.user.findUniqueOrThrow({
     where: {
-      id: id,
+      id,
+      status: UserStatus.ACTIVE,
     },
     select: {
       id: true,
@@ -38,7 +68,72 @@ const getMyProfileFromDB = async (id: string) => {
     },
   });
 
-  return Profile;
+  let profileInfo = null;
+
+  if (user.role === UserRoleEnum.ADMIN) {
+    profileInfo = await prisma.admin.findUnique({
+      where: { email: user.email },
+      select: {
+        id: true,
+        fullName: true,
+        profile: true,
+        phoneNumber: true,
+      },
+    });
+  } else if (user.role === UserRoleEnum.COACH) {
+    profileInfo = await prisma.coach.findUnique({
+      where: { email: user.email },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        profile: true,
+        phoneNumber: true,
+        experience: true,
+        location: true,
+        expertise: true,
+        certification: true,
+        address: true,
+        price: true,
+        specialty: {
+          select: {
+            id: true,
+            title: true,
+          },
+        },
+        subscription: {
+          select: {
+            id: true,
+            title: true,
+            price: true,
+            duration: true,
+          },
+        },
+      },
+    });
+  } else if (user.role === UserRoleEnum.ATHLETE) {
+    profileInfo = await prisma.athlete.findUnique({
+      where: { email: user.email },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        profile: true,
+        phoneNumber: true,
+        category: true,
+        address: true,
+      },
+    });
+  }
+
+  if (!profileInfo) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Profile not found!');
+  }
+
+  return {
+    ...user,
+    profile: profileInfo,
+  };
 };
 
 const getUserDetailsFromDB = async (id: string) => {
@@ -50,9 +145,111 @@ const getUserDetailsFromDB = async (id: string) => {
       email: true,
       role: true,
       status: true,
+      isApproved: true,
+      isDeleted: true,
+      isEmailVerified: true,
+      createdAt: true,
+      updatedAt: true,
     },
   });
-  return user;
+
+  if (!user) {
+    throw new AppError(httpStatus.NOT_FOUND, 'User not found');
+  }
+
+  let profileInfo = null;
+  if (user.role === UserRoleEnum.ADMIN) {
+    profileInfo = await prisma.admin.findUnique({
+      where: { email: user.email },
+      select: {
+        id: true,
+        fullName: true,
+        profile: true,
+        phoneNumber: true,
+      },
+    });
+  } else if (user.role === UserRoleEnum.COACH) {
+    profileInfo = await prisma.coach.findUnique({
+      where: { email: user.email },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        profile: true,
+        phoneNumber: true,
+        experience: true,
+        location: true,
+        expertise: true,
+        certification: true,
+        address: true,
+        price: true,
+        specialty: {
+          select: {
+            id: true,
+            title: true,
+          },
+        },
+        subscription: {
+          select: {
+            id: true,
+            title: true,
+            price: true,
+            duration: true,
+          },
+        },
+        booking: {
+          select: {
+            id: true,
+            status: true,
+            createdAt: true,
+          },
+        },
+        review: {
+          select: {
+            id: true,
+            rating: true,
+            comment: true,
+            createdAt: true,
+          },
+        },
+      },
+    });
+  } else if (user.role === UserRoleEnum.ATHLETE) {
+    profileInfo = await prisma.athlete.findUnique({
+      where: { email: user.email },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        profile: true,
+        phoneNumber: true,
+        category: true,
+        address: true,
+        booking: {
+          select: {
+            id: true,
+            status: true,
+            createdAt: true,
+            coach: {
+              select: {
+                id: true,
+                fullName: true,
+              },
+            },
+          },
+        },
+      },
+    });
+  }
+
+  if (!profileInfo) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Profile details not found!');
+  }
+
+  return {
+    ...user,
+    profile: profileInfo,
+  };
 };
 
 const updateUserRoleStatusIntoDB = async (id: string, role: UserRoleEnum) => {
@@ -66,44 +263,70 @@ const updateUserRoleStatusIntoDB = async (id: string, role: UserRoleEnum) => {
   });
   return result;
 };
-const updateUserStatus = async (id: string, status: UserStatus) => {
-  const result = await prisma.user.update({
-    where: {
-      id,
-    },
-    data: {
-      status,
-    },
-    select: {
-      id: true,
-      status: true,
-      role: true,
-    },
+
+const updateUserStatus = async (userId: string, adminId: string) => {
+  const admin = await prisma.user.findUnique({ where: { id: adminId } });
+  if (!admin || admin.role !== UserRoleEnum.ADMIN) {
+    throw new AppError(httpStatus.FORBIDDEN, 'Only admin can approve');
+  }
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
   });
+
+  if (!user) throw new AppError(httpStatus.NOT_FOUND, 'User not found');
+
+  // Coaches cannot be activated unless approved
+  if (user.role === UserRoleEnum.COACH && !user.isApproved) {
+    throw new AppError(
+      httpStatus.FORBIDDEN,
+      'Coach cannot be activated before approval',
+    );
+  }
+
+  const newStatus =
+    user.status === UserStatus.ACTIVE
+      ? UserStatus.RESTRICTED
+      : UserStatus.ACTIVE;
+
+  const result = await prisma.user.update({
+    where: { id: userId },
+    data: { status: newStatus },
+    select: { id: true, fullName: true, email: true, role: true, status: true },
+  });
+
   return result;
 };
-const updateUserApproval = async (userId: string) => {
-  console.log(userId);
-  // const user = await prisma.user.findUnique({
-  //   where: { id: userId },
-  //   select: {
-  //     id: true,
-  //     fullName: true,
-  //     email: true,
-  //     isApproved: true,
-  //   },
-  // });
 
-  // if (!user) {
-  //   throw new AppError(httpStatus.NOT_FOUND, 'User not found');
-  // }
-  // const result = await prisma.user.update({
-  //   where: { id: userId },
-  //   data: {
-  //     isApproved: true,
-  //   },
-  // });
-  // return result;
+// Toggle user approval (true <-> false) – only admin can do this
+const updateUserApproval = async (userId: string, adminId: string) => {
+  const admin = await prisma.user.findUnique({ where: { id: adminId } });
+  if (!admin || admin.role !== UserRoleEnum.ADMIN) {
+    throw new AppError(httpStatus.FORBIDDEN, 'Only admin can approve');
+  }
+
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) throw new AppError(httpStatus.NOT_FOUND, 'User not found');
+
+  if (user.role !== UserRoleEnum.COACH) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Only coaches can be approved');
+  }
+
+  const newApprovalStatus = !user.isApproved;
+
+  const result = await prisma.user.update({
+    where: { id: userId },
+    data: { isApproved: newApprovalStatus },
+    select: {
+      id: true,
+      fullName: true,
+      email: true,
+      role: true,
+      status: true,
+      isApproved: true,
+    },
+  });
+
+  return result;
 };
 
 const softDeleteUserIntoDB = async (id: string) => {
@@ -157,6 +380,83 @@ const hardDeleteUserIntoDB = async (id: string, adminId: string) => {
   // );
 };
 
+
+const updateMyProfile = async (
+  userId: string,
+  role: UserRoleEnum,
+  profileFile?: Express.Multer.File,
+  certificationFile?: Express.Multer.File,
+  payload?: any,
+) => {
+  // 1️⃣ Get user to fetch email
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { email: true },
+  });
+  if (!user) throw new Error('User not found');
+  
+  let profileUrl: string | null = null;
+  let certificationUrl: string | null = null;
+  
+  if (profileFile) {
+    const uploaded = await uploadToDigitalOceanAWS(profileFile);
+    profileUrl = uploaded.Location;
+  }
+  
+  if (role === UserRoleEnum.COACH && certificationFile) {
+    const uploadedCert = await uploadToDigitalOceanAWS(certificationFile);
+    certificationUrl = uploadedCert.Location;
+  }
+
+  const updateData: any = { ...payload };
+  if (profileUrl) updateData.profile = profileUrl;
+  if (certificationUrl) updateData.certification = certificationUrl;
+  
+  if (role === UserRoleEnum.ADMIN) {
+    return await prisma.admin.update({
+      where: { email: user.email }, // ✅ use email from user table
+      data: updateData,
+      select: { id: true, fullName: true, email: true, profile: true },
+    });
+  }
+  
+  if (role === UserRoleEnum.ATHLETE) {
+    return await prisma.athlete.update({
+      where: { email: user.email },
+      data: updateData,
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        profile: true,
+        phoneNumber: true,
+        category: true,
+        address: true,
+      },
+    });
+  }
+
+  if (role === UserRoleEnum.COACH) {
+    return await prisma.coach.update({
+      where: { email: user.email },
+      data: updateData,
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        profile: true,
+        phoneNumber: true,
+        expertise: true,
+        experience: true,
+        location:true,
+        address:true,
+        certification: true,
+        specialtyId: true,
+      },
+    });
+  }
+};
+
 const updateUserIntoDb = async (req: Request, id: string) => {
   // Step 1️⃣: Check if user exists
   const userInfo = await prisma.user.findUnique({
@@ -207,36 +507,6 @@ const updateUserIntoDb = async (req: Request, id: string) => {
   return result;
 };
 
-const updateMyProfileIntoDB = async (
-  id: string,
-  file: Express.Multer.File | undefined,
-  payload: Partial<User>,
-) => {
-  // Prevent updating sensitive fields
-  const { email, role, ...updateData } = payload;
-
-  let profileUrl: string | null = null;
-  if (file) {
-    const location = await uploadToDigitalOceanAWS(file);
-    profileUrl = location.Location;
-  }
-
-  // Always update (with or without file)
-  const result = await prisma.user.update({
-    where: { id },
-    data: updateData,
-    select: {
-      id: true,
-      fullName: true,
-      email: true,
-      role: true,
-      status: true,
-    },
-  });
-
-  return result;
-};
-
 export const UserServices = {
   getAllUsersFromDB,
   getMyProfileFromDB,
@@ -247,5 +517,5 @@ export const UserServices = {
   softDeleteUserIntoDB,
   hardDeleteUserIntoDB,
   updateUserIntoDb,
-  updateMyProfileIntoDB,
+  updateMyProfile,
 };

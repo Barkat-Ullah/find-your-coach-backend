@@ -1,0 +1,35 @@
+model Report {
+    id                  String       @id @default(auto()) @map("_id") @db.ObjectId
+    reportedById        String       @db.ObjectId
+    reportedUserId      String       @db.ObjectId
+    reason              ReportReason
+    description         String?
+    status              ReportStatus @default(PENDING)
+    adminId             String?      @db.ObjectId
+
+    reportedByAthleteId String       @db.ObjectId 
+    reportedToCoachId   String       @db.ObjectId
+    reportedByAthlete   Athlete      @relation(fields: [reportedByAthleteId], references: [id])
+    reportedToCoach     Coach        @relation(fields: [reportedToCoachId], references: [id])
+    admin               Admin?       @relation(fields: [adminId], references: [id])
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@map("reports")
+}
+
+enum ReportReason {
+    DONT_LIKE
+    BULLYING_UNWANTED
+    VIOLENCE_HATE_EXPLOITATION
+    SCAM_FRAUD_SPAM
+    FALSE_INFORMATION
+    INTELLECTUAL_PROPERTY
+}
+
+enum ReportStatus {
+    PENDING
+    REVIEWED
+    RESOLVED
+}

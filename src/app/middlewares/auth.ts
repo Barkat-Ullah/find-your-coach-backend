@@ -47,8 +47,12 @@ const auth = <T extends readonly (UserRoleEnum | 'ANY')[]>(
       if (user.isDeleted) {
         throw new AppError(httpStatus.UNAUTHORIZED, 'You are deleted !');
       }
-      // if (!user.isApproved) {
-      //   throw new AppError(httpStatus.UNAUTHORIZED, 'You are not approved by admin!');
+      // Change 2: Only for COACH role (admin approves coach only)
+      // if (user.role === UserRoleEnum.COACH && !user.isApproved) {
+      //   throw new AppError(
+      //     httpStatus.UNAUTHORIZED,
+      //     'You are not approved by admin!',
+      //   );
       // }
       if (!user.isEmailVerified) {
         throw new AppError(httpStatus.UNAUTHORIZED, 'You are not verified!');
@@ -56,7 +60,6 @@ const auth = <T extends readonly (UserRoleEnum | 'ANY')[]>(
       if (user.status === UserStatus.RESTRICTED) {
         throw new AppError(httpStatus.UNAUTHORIZED, 'You are suspended!');
       }
-
 
       req.user = verifyUserToken;
       if (roles.includes('ANY')) {

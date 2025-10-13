@@ -1,17 +1,8 @@
 model Specialties {
-  id               String            @id @default(auto()) @map("_id") @db.ObjectId
-  title            String
-  icon             String?
-  coachSpecialties CoachSpecialties[]
-}
+  id    String  @id @default(auto()) @map("_id") @db.ObjectId
+  title String
+  icon  String?
+  coach Coach[]
 
-model CoachSpecialties {
-  id             String       @id @default(auto()) @map("_id") @db.ObjectId
-  specialtiesId  String       @db.ObjectId
-  coachId        String       @db.ObjectId
-
-  specialties    Specialties  @relation(fields: [specialtiesId], references: [id])
-  coach          Coach        @relation(fields: [coachId], references: [id])
-
-  @@map("coach_specialties")
+  @@map("specialties")
 }

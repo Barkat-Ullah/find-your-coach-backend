@@ -36,8 +36,6 @@ const getUserDetails = catchAsync(async (req, res) => {
   });
 });
 
-
-
 const updateUserRoleStatus = catchAsync(async (req, res) => {
   const { id } = req.params;
   const role = req.body.role;
@@ -51,9 +49,9 @@ const updateUserRoleStatus = catchAsync(async (req, res) => {
 });
 
 const updateUserStatus = catchAsync(async (req, res) => {
+  const userId = req.user.id;
   const { id } = req.params;
-  const status = req.body.status;
-  const result = await UserServices.updateUserStatus(id, status);
+  const result = await UserServices.updateUserStatus(id, userId);
 
   sendResponse(res, {
     statusCode: httpStatus.OK,
@@ -62,8 +60,9 @@ const updateUserStatus = catchAsync(async (req, res) => {
   });
 });
 const updateUserApproval = catchAsync(async (req, res) => {
-  const { userId } = req.body;
-  const result = await UserServices.updateUserApproval(userId);
+  const adminId = req.user.id;
+  const { id } = req.params;
+  const result = await UserServices.updateUserApproval(id, adminId);
 
   sendResponse(res, {
     statusCode: httpStatus.OK,
@@ -106,10 +105,28 @@ const updateUser = catchAsync(async (req, res) => {
 });
 
 const updateMyProfile = catchAsync(async (req, res) => {
-  const id = req.user.id;
-  const file = req.file;
-  const payload = JSON.parse(req.body.data);
-  const result = await UserServices.updateMyProfileIntoDB(id, file, payload);
+  const userId = req.user.id;
+  const role = req.user.role;
+
+  // Multer files
+  const profileFile =
+    req.files && (req.files as any).profile
+      ? (req.files as any).profile[0]
+      : undefined;
+  const certificationFile =
+    req.files && (req.files as any).certificate
+      ? (req.files as any).certificate[0]
+      : undefined;
+
+  const payload = JSON.parse(req.body.data || '{}');
+
+  const result = await UserServices.updateMyProfile(
+    userId,
+    role,
+    profileFile,
+    certificationFile,
+    payload,
+  );
 
   sendResponse(res, {
     statusCode: httpStatus.OK,

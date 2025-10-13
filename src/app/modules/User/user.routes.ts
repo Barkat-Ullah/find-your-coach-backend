@@ -15,9 +15,10 @@ router.get(
 );
 router.get(
   '/me',
-  // auth(UserRoleEnum.ADMIN, UserRoleEnum.USER),
+  auth(UserRoleEnum.ADMIN, UserRoleEnum.ATHLETE, UserRoleEnum.COACH),
   UserControllers.getMyProfile,
 );
+
 router.get('/:id', auth('ANY'), UserControllers.getUserDetails);
 
 router.delete('/soft-delete', auth('ANY'), UserControllers.softDeleteUser);
@@ -26,7 +27,6 @@ router.delete(
   auth(UserRoleEnum.ADMIN),
   UserControllers.hardDeleteUser,
 );
-
 
 router.put(
   '/user-role/:id',
@@ -38,11 +38,10 @@ router.put(
 router.put(
   '/user-status/:id',
   auth(UserRoleEnum.ADMIN),
-  validateRequest.body(userValidation.updateUserStatus),
   UserControllers.updateUserStatus,
 );
 router.put(
-  '/approve-user',
+  '/approve-user/:id',
   auth(UserRoleEnum.ADMIN),
   UserControllers.updateUserApproval,
 );
@@ -57,9 +56,13 @@ router.put(
 
 router.put(
   '/update-profile',
-  // auth(UserRoleEnum.ADMIN, UserRoleEnum.USER),
-  upload.single('file'),
+  auth(UserRoleEnum.ADMIN, UserRoleEnum.ATHLETE, UserRoleEnum.COACH),
+  upload.fields([
+    { name: 'profile', maxCount: 1 },
+    { name: 'certificate', maxCount: 1 }, 
+  ]),
   UserControllers.updateMyProfile,
 );
+
 
 export const UserRouters = router;

@@ -12,6 +12,7 @@ type TResponse<T> = {
   success?: boolean;
   message?: string;
   meta?: TMeta;
+  
   data: T;
 };
 
