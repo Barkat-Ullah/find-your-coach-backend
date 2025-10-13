@@ -22,7 +22,7 @@ const getAllPayments = async (query: Record<string, any>) => {
     .customFields({
       id: true,
       amount: true,
-      userId: true,
+      coachId: true,
       paymentMethodType: true,
       createdAt: true,
       updatedAt: true,
@@ -30,7 +30,7 @@ const getAllPayments = async (query: Record<string, any>) => {
       stripeCustomerId: true,
       stripePaymentId: true,
       stripeSessionId: true,
-      user: {
+      coach: {
         select: {
           fullName: true,
           email: true,
@@ -52,7 +52,7 @@ const singleTransactionHistory = async (query: {
     select: {
       id: true,
       amount: true,
-      userId: true,
+      coachId: true,
       paymentMethodType: true,
       createdAt: true,
       stripeCustomerId: true,
@@ -60,7 +60,7 @@ const singleTransactionHistory = async (query: {
       stripeSessionId: true,
       currency: true,
       status: true,
-      user: {
+      coach: {
         select: {
           fullName: true,
           email: true,
@@ -82,7 +82,7 @@ const singleTransactionHistoryBySessionId = async (query: {
     select: {
       id: true,
       amount: true,
-      userId: true,
+      coachId: true,
       paymentMethodType: true,
       createdAt: true,
       stripeCustomerId: true,
@@ -90,7 +90,7 @@ const singleTransactionHistoryBySessionId = async (query: {
       stripeSessionId: true,
       currency: true,
       status: true,
-      user: {
+      coach: {
         select: {
           fullName: true,
           email: true,

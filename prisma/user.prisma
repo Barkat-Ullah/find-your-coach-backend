@@ -16,7 +16,6 @@ model User {
 
   stripeCustomerId String?
 
-  payments      Payment[]
   notifications NotificationUser[]
 
   //relation by role

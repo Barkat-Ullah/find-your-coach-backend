@@ -1,6 +1,4 @@
-
 import httpStatus from 'http-status';
-
 import { Request, Response } from 'express';
 import { SubscriptionServices } from './Subscription.service';
 import catchAsync from '../../utils/catchAsync';
@@ -28,7 +26,7 @@ const getAllSubscription = catchAsync(async (req: Request, res: Response) => {
 
 const assignSubscription = catchAsync(async (req: Request, res: Response) => {
   const userId = req.user.id;
-  const result = await SubscriptionServices.assignSubscriptionToUser(
+  const result = await SubscriptionServices.assignSubscriptionToCoach(
     userId,
     req.body,
   );
@@ -43,7 +41,7 @@ const assignSubscription = catchAsync(async (req: Request, res: Response) => {
 
 const getMySubscription = catchAsync(async (req: Request, res: Response) => {
   const userId = req.user.id;
-  const result = await SubscriptionServices.getMySubscription(userId);
+  const result = await SubscriptionServices.getCoachSubscription(userId);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
@@ -86,7 +84,6 @@ const deleteIntoDb = catchAsync(async (req: Request, res: Response) => {
 
 const deleteMySubscription = catchAsync(async (req, res) => {
   const userId = req.user.id;
-  console.log('user', userId);
   const result = await SubscriptionServices.deleteMySubscription(userId);
   sendResponse(res, {
     statusCode: httpStatus.OK,

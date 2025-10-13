@@ -19,13 +19,19 @@ model Coach {
     user        User        @relation(fields: [email], references: [email])
     specialtyId String      @db.ObjectId
     specialty   Specialties @relation(fields: [specialtyId], references: [id])
-    subscriptionId       String?      @db.ObjectId
-    subscription         Subscription? @relation(fields: [subscriptionId], references: [id])
-    report Report[]
-    favorite Favorite[]
-    booking Booking[]
+
+    stripeCustomerId  String?
+    subscriptionStart DateTime?
+    subscriptionEnd   DateTime?
+
+    subscriptionId String?             @db.ObjectId
+    subscription   Subscription?       @relation(fields: [subscriptionId], references: [id])
+    report         Report[]
+    favorite       Favorite[]
+    booking        Booking[]
     availabilities CoachAvailability[]
-    review Review[]
+    review         Review[]
+    payment        Payment[]
 
     @@map("coaches")
 }
