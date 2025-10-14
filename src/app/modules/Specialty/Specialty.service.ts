@@ -29,6 +29,9 @@ const createIntoDb = async (req: Request) => {
 // ✅ Get all specialties
 const getAllSpecialty = async (query: Record<string, any>) => {
   const result = await prisma.specialties.findMany({
+    where: {
+      isActive: true,
+    },
     orderBy: { title: 'asc' },
   });
   return result;
@@ -53,10 +56,16 @@ const deleteIntoDb = async (id: string) => {
   if (!existing) {
     throw new AppError(httpStatus.NOT_FOUND, 'Specialty not found!');
   }
-
-  await prisma.specialties.delete({ where: { id } });
-
-  return { deleted: true };
+  const result = await prisma.specialties.update({
+    where: { id },
+    data: { isActive: false },
+    select: {
+      id: true,
+      title: true,
+      isActive: true,
+    },
+  });
+  return result;
 };
 
 export const SpecialtyServices = {

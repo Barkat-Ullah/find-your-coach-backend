@@ -59,7 +59,7 @@ model Booking {
 }
 
 enum DayOfWeek {
-    MONDAY // For weekly availability patterns
+    MONDAY 
     TUESDAY
     WEDNESDAY
     THURSDAY

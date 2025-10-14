@@ -12,20 +12,20 @@ import {
 } from './shared';
 
 import { rootHandler } from './shared/rootHandler';
-// import { StripeWebHook } from './app/utils/StripeUtils';
+import { StripeWebHook } from './app/utils/StripeUtils';
 
 const app: Application = express();
+app.post(
+  '/api/v1/stripe/webhook',
+  express.raw({ type: 'application/json' }),
+  StripeWebHook,
+);
 
 setupMiddlewares(app);
 
 app.use('/api/v1', apiLimiter, router);
 
 // Stripe webhook (if needed, before error handler)
-app.post(
-  '/api/v1/stripe/webhook',
-  express.raw({ type: 'application/json' }),
-  // StripeWebHook,
-);
 
 // Upload route (after main routes, before error handler)
 app.post(

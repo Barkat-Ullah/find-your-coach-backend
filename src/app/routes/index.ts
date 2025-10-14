@@ -5,6 +5,8 @@ import { UserRouters } from '../modules/User/user.routes';
 import { PaymentRoutes } from '../modules/Payment/payment.route';
 import { SpecialtyRoutes } from '../modules/Specialty/Specialty.routes';
 import { BannerRoutes } from '../modules/banner/banner.routes';
+import { SubscriptionRoutes } from '../modules/Subscription/Subscription.routes';
+import { FavoriteRoutes } from '../modules/Favorite/Favorite.routes';
 
 
 const router = express.Router();
@@ -34,6 +36,14 @@ const moduleRoutes = [
   {
     path: '/banner',
     route: BannerRoutes,
+  },
+  {
+    path: '/subscription',
+    route: SubscriptionRoutes,
+  },
+  {
+    path: '/favorite',
+    route: FavoriteRoutes,
   },
 ];
 

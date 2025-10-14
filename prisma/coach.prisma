@@ -27,7 +27,7 @@ model Coach {
     subscriptionId String?             @db.ObjectId
     subscription   Subscription?       @relation(fields: [subscriptionId], references: [id])
     report         Report[]
-    favorite       Favorite[]
+    // favorite       Favorite[]
     booking        Booking[]
     availabilities CoachAvailability[]
     review         Review[]

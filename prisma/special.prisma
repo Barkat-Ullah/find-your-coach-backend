@@ -1,8 +1,13 @@
 model Specialties {
-  id    String  @id @default(auto()) @map("_id") @db.ObjectId
-  title String
-  icon  String?
-  coach Coach[]
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  title     String   @unique
+  icon      String?
+  isActive  Boolean  @default(true)
+  
+  coach     Coach[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("specialties")
 }

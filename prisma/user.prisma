@@ -18,7 +18,7 @@ model User {
 
   notifications NotificationUser[]
 
-  //relation by role
+  //relation by email
   admin   Admin?
   coach   Coach?
   athlete Athlete?

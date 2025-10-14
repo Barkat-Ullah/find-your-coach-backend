@@ -25,16 +25,16 @@ const getAllSubscription = catchAsync(async (req: Request, res: Response) => {
 });
 
 const assignSubscription = catchAsync(async (req: Request, res: Response) => {
-  const userId = req.user.id;
+  const coachMail = req.user.email;
   const result = await SubscriptionServices.assignSubscriptionToCoach(
-    userId,
+    coachMail,
     req.body,
   );
 
   return sendResponse(res, {
     statusCode: 200,
     success: true,
-    // message: result.message,
+    message: result?.message,
     data: result,
   });
 });
@@ -83,8 +83,8 @@ const deleteIntoDb = catchAsync(async (req: Request, res: Response) => {
 });
 
 const deleteMySubscription = catchAsync(async (req, res) => {
-  const userId = req.user.id;
-  const result = await SubscriptionServices.deleteMySubscription(userId);
+  const coachMail = req.user.email;
+  const result = await SubscriptionServices.deleteMySubscription(coachMail);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,

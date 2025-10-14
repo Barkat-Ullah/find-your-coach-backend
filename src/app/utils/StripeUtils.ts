@@ -56,8 +56,9 @@ const StripeHook = async (
 
       const existingPayment = await prisma.payment.findUnique({
         where: { stripePaymentId: paymentIntent.id },
-        select: { id: true },
+        select: { id: true, subscriptionId: true },
       });
+      console.log(existingPayment);
 
       if (existingPayment) {
         await prisma.payment.update({
@@ -80,26 +81,32 @@ const StripeHook = async (
     // ✅ Invoice Payment Succeeded
     // -------------------------------
     case 'invoice.payment_succeeded': {
-      const invoice = event.data.object as Stripe.Invoice & {
-        subscription?: string | Stripe.Subscription | null;
-        payment_intent?: string | Stripe.PaymentIntent | null;
-      };
-
-      const stripeSubscriptionId =
-        (invoice.subscription as string | null) ?? null;
+      const invoice = event.data.object as Stripe.Invoice;
+      const stripeSubscriptionId = invoice.subscription as string | null;
       const stripeCustomerId = invoice.customer as string | null;
+      const paymentIntentId = invoice.payment_intent as string | null;
 
       if (!stripeSubscriptionId) {
         console.log('Invoice has no subscription ID, skipping.');
         break;
       }
 
-      const existingPayment = await prisma.payment.findUnique({
-        where: { stripeSubscriptionId },
-        select: { id: true, coachId: true, subscriptionId: true },
+      // Match by stripeSubscriptionId instead of stripePaymentId
+      const existingPayment = await prisma.payment.findFirst({
+        where: { stripeSubscriptionId: stripeSubscriptionId },
       });
 
       if (existingPayment) {
+        await prisma.payment.update({
+          where: { id: existingPayment.id },
+          data: {
+            status: PaymentStatus.SUCCESS,
+            amount: (invoice.amount_paid || 0) / 100,
+            stripePaymentId: paymentIntentId,
+            stripeCustomerId: stripeCustomerId ?? undefined,
+          },
+        });
+
         const subscription = await prisma.subscription.findUnique({
           where: { id: existingPayment.subscriptionId },
         });
@@ -107,14 +114,11 @@ const StripeHook = async (
         if (subscription) {
           const startDate = new Date();
           const endDate = new Date();
+          if (subscription.duration === SubscriptionType.MONTHLY)
+            endDate.setMonth(startDate.getMonth() + 1);
+          if (subscription.duration === SubscriptionType.YEARLY)
+            endDate.setFullYear(startDate.getFullYear() + 1);
 
-          if (subscription.duration === SubscriptionType.MONTHLY) {
-            endDate.setMonth(endDate.getMonth() + 1);
-          } else if (subscription.duration === SubscriptionType.YEARLY) {
-            endDate.setFullYear(endDate.getFullYear() + 1);
-          }
-
-          // ✅ Update Coach subscription info
           await prisma.coach.update({
             where: { id: existingPayment.coachId },
             data: {
@@ -124,29 +128,14 @@ const StripeHook = async (
               stripeCustomerId: stripeCustomerId ?? undefined,
             },
           });
-
-          // ✅ Update Payment
-          await prisma.payment.update({
-            where: { id: existingPayment.id },
-            data: {
-              status: PaymentStatus.SUCCESS,
-              amount: (invoice.amount_paid || 0) / 100,
-              stripeCustomerId: stripeCustomerId ?? undefined,
-              stripePaymentId:
-                (invoice.payment_intent as string | null) ?? undefined,
-            },
-          });
-
-          console.log(
-            `✅ Payment SUCCESS for coach ${existingPayment.coachId}, subscription updated.`,
-          );
         }
+
+        console.log(`✅ Payment SUCCESS: ${existingPayment.coachId}`);
       } else {
         console.log(
-          `⚠️ No local payment record found for Stripe Subscription ID ${stripeSubscriptionId}. Possibly a recurring renewal.`,
+          `⚠️ No payment found for subscription ${stripeSubscriptionId}`,
         );
       }
-
       break;
     }
 
