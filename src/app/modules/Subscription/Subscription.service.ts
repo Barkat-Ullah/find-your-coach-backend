@@ -179,9 +179,9 @@ const assignSubscriptionToCoach = async (coachMail: string, payload: any) => {
 
 // Get Subscription by ID
 
-const getCoachSubscription = async (coachId: string) => {
+const getCoachSubscription = async (coachMail: string) => {
   const coach = await prisma.coach.findUnique({
-    where: { id: coachId },
+    where: { email: coachMail },
     include: { subscription: true },
   });
 

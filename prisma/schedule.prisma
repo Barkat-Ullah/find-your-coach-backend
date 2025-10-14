@@ -1,11 +1,12 @@
 // CoachAvailability: Weekly recurring availability pattern for coach (e.g., Mon-Fri 10AM-4PM)
 model CoachAvailability {
-    id        String    @id @default(auto()) @map("_id") @db.ObjectId
-    coachId   String    @db.ObjectId
-    dayOfWeek DayOfWeek // Specific day of week
+    id        String   @id @default(auto()) @map("_id") @db.ObjectId
+    coachId   String   @db.ObjectId
+    // dayOfWeek DayOfWeek // Specific day of week
+    slotDate  DateTime
     startTime DateTime // Start time (time only, e.g., 10:00:00)
     endTime   DateTime // End time (e.g., 16:00:00)
-    isActive  Boolean   @default(true) // Day active or not (e.g., Sunday false)
+    isActive  Boolean  @default(true) // Day active or not (e.g., Sunday false)
 
     coach     Coach      @relation(fields: [coachId], references: [id])
     timeSlots TimeSlot[] // Slots generated from this availability
@@ -13,7 +14,8 @@ model CoachAvailability {
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt
 
-    @@unique([coachId, dayOfWeek]) // One pattern per day per coach
+    // @@unique([coachId, dayOfWeek]) // One pattern per day per coach
+    @@unique([coachId, slotDate])
     @@map("coach_availabilities")
 }
 
@@ -24,6 +26,7 @@ model TimeSlot {
     startTime      DateTime // Slot start time (relative, e.g., 10:00:00)
     endTime        DateTime // Slot end time (e.g., 11:00:00)
     isBooked       Boolean  @default(false) // Globally booked flag (for template; actual per date in Booking)
+    status         SlotStatus @default(ACTIVE)
 
     availability CoachAvailability @relation(fields: [availabilityId], references: [id])
     bookings     Booking[] // Actual bookings using this slot type
@@ -58,14 +61,19 @@ model Booking {
     @@map("bookings")
 }
 
-enum DayOfWeek {
-    MONDAY 
-    TUESDAY
-    WEDNESDAY
-    THURSDAY
-    FRIDAY
-    SATURDAY
-    SUNDAY
+// enum DayOfWeek {
+//     MONDAY 
+//     TUESDAY
+//     WEDNESDAY
+//     THURSDAY
+//     FRIDAY
+//     SATURDAY
+//     SUNDAY
+// }
+
+enum SlotStatus {
+    ACTIVE
+    INACTIVE
 }
 
 enum BookingStatus {

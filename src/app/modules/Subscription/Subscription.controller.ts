@@ -40,8 +40,8 @@ const assignSubscription = catchAsync(async (req: Request, res: Response) => {
 });
 
 const getMySubscription = catchAsync(async (req: Request, res: Response) => {
-  const userId = req.user.id;
-  const result = await SubscriptionServices.getCoachSubscription(userId);
+  const coachMail = req.user?.email;
+  const result = await SubscriptionServices.getCoachSubscription(coachMail);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,

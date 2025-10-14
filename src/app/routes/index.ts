@@ -7,6 +7,7 @@ import { SpecialtyRoutes } from '../modules/Specialty/Specialty.routes';
 import { BannerRoutes } from '../modules/banner/banner.routes';
 import { SubscriptionRoutes } from '../modules/Subscription/Subscription.routes';
 import { FavoriteRoutes } from '../modules/Favorite/Favorite.routes';
+import { ScheduleRoutes } from '../modules/Schedule/Schedule.routes';
 
 
 const router = express.Router();
@@ -44,6 +45,10 @@ const moduleRoutes = [
   {
     path: '/favorite',
     route: FavoriteRoutes,
+  },
+  {
+    path: '/schedule',
+    route: ScheduleRoutes,
   },
 ];
 
