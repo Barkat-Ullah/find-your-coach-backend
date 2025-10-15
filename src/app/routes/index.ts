@@ -8,7 +8,9 @@ import { BannerRoutes } from '../modules/banner/banner.routes';
 import { SubscriptionRoutes } from '../modules/Subscription/Subscription.routes';
 import { FavoriteRoutes } from '../modules/Favorite/Favorite.routes';
 import { ScheduleRoutes } from '../modules/Schedule/Schedule.routes';
-
+import { CoachRoutes } from '../modules/Coach/Coach.routes';
+import { ReportRoutes } from '../modules/Report/Report.routes';
+import { BookingRoutes } from '../modules/Booking/Booking.routes';
 
 const router = express.Router();
 
@@ -49,6 +51,18 @@ const moduleRoutes = [
   {
     path: '/schedule',
     route: ScheduleRoutes,
+  },
+  {
+    path: '/coach',
+    route: CoachRoutes,
+  },
+  {
+    path: '/report',
+    route: ReportRoutes,
+  },
+  {
+    path: '/booking',
+    route: BookingRoutes,
   },
 ];
 

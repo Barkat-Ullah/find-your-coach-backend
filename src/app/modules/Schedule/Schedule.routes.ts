@@ -1,26 +1,17 @@
-import express from "express";
-import { ScheduleController } from "./Schedule.controller";
-import auth from "../../middlewares/auth";
-import { UserRoleEnum } from "@prisma/client";
-
+import express from 'express';
+import { ScheduleController } from './Schedule.controller';
+import auth from '../../middlewares/auth';
+import { UserRoleEnum } from '@prisma/client';
 
 const router = express.Router();
 
-router.get("/", ScheduleController.getAllSchedule);
-router.get('/my', auth(UserRoleEnum.COACH), ScheduleController.getMySchedule);  
-router.get("/:id", ScheduleController.getScheduleById);
-
-router.post(
-  "/",
+router.get(
+  '/slot',
   auth(UserRoleEnum.COACH),
-  ScheduleController.createIntoDb
+  ScheduleController.getSlotsByDate,
 );
-router.patch(
-  "/:id",
-  ScheduleController.updateIntoDb
-);
-
-router.delete("/:id", ScheduleController.deleteIntoDb);
-router.delete("/soft/:id", ScheduleController.softDeleteIntoDb);
+router.post('/', auth(UserRoleEnum.COACH), ScheduleController.createIntoDb);
+router.post('/slot/add-slot', auth(UserRoleEnum.COACH), ScheduleController.addNewSlotByCoach);
+router.patch('/slot/:slotId',auth(UserRoleEnum.COACH) ,ScheduleController.toggleSlotStatus);
 
 export const ScheduleRoutes = router;

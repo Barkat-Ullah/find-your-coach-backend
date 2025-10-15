@@ -95,6 +95,8 @@ const getMyProfileFromDB = async (id: string) => {
         certification: true,
         address: true,
         price: true,
+        age:true,
+        gender:true,
         specialty: {
           select: {
             id: true,
@@ -148,8 +150,6 @@ const getUserDetailsFromDB = async (id: string) => {
       isApproved: true,
       isDeleted: true,
       isEmailVerified: true,
-      createdAt: true,
-      updatedAt: true,
     },
   });
 
@@ -183,6 +183,10 @@ const getUserDetailsFromDB = async (id: string) => {
         certification: true,
         address: true,
         price: true,
+        isRecommendedPayment: true,
+        recommendedTime: true,
+        age: true,
+        gender: true,
         specialty: {
           select: {
             id: true,
@@ -297,7 +301,6 @@ const updateUserStatus = async (userId: string, adminId: string) => {
   return result;
 };
 
-// Toggle user approval (true <-> false) – only admin can do this
 const updateUserApproval = async (userId: string, adminId: string) => {
   const admin = await prisma.user.findUnique({ where: { id: adminId } });
   if (!admin || admin.role !== UserRoleEnum.ADMIN) {
@@ -380,7 +383,6 @@ const hardDeleteUserIntoDB = async (id: string, adminId: string) => {
   // );
 };
 
-
 const updateMyProfile = async (
   userId: string,
   role: UserRoleEnum,
@@ -394,15 +396,15 @@ const updateMyProfile = async (
     select: { email: true },
   });
   if (!user) throw new Error('User not found');
-  
+
   let profileUrl: string | null = null;
   let certificationUrl: string | null = null;
-  
+
   if (profileFile) {
     const uploaded = await uploadToDigitalOceanAWS(profileFile);
     profileUrl = uploaded.Location;
   }
-  
+
   if (role === UserRoleEnum.COACH && certificationFile) {
     const uploadedCert = await uploadToDigitalOceanAWS(certificationFile);
     certificationUrl = uploadedCert.Location;
@@ -411,7 +413,7 @@ const updateMyProfile = async (
   const updateData: any = { ...payload };
   if (profileUrl) updateData.profile = profileUrl;
   if (certificationUrl) updateData.certification = certificationUrl;
-  
+
   if (role === UserRoleEnum.ADMIN) {
     return await prisma.admin.update({
       where: { email: user.email }, // ✅ use email from user table
@@ -419,7 +421,7 @@ const updateMyProfile = async (
       select: { id: true, fullName: true, email: true, profile: true },
     });
   }
-  
+
   if (role === UserRoleEnum.ATHLETE) {
     return await prisma.athlete.update({
       where: { email: user.email },
@@ -448,10 +450,12 @@ const updateMyProfile = async (
         phoneNumber: true,
         expertise: true,
         experience: true,
-        location:true,
-        address:true,
+        location: true,
+        address: true,
         certification: true,
         specialtyId: true,
+        age: true,
+        gender: true,
       },
     });
   }

@@ -6,7 +6,7 @@ model CoachAvailability {
     slotDate  DateTime
     startTime DateTime // Start time (time only, e.g., 10:00:00)
     endTime   DateTime // End time (e.g., 16:00:00)
-    isActive  Boolean  @default(true) // Day active or not (e.g., Sunday false)
+    isActive  Boolean  @default(false) // Day active or not (e.g., Sunday false)
 
     coach     Coach      @relation(fields: [coachId], references: [id])
     timeSlots TimeSlot[] // Slots generated from this availability
@@ -36,6 +36,20 @@ model TimeSlot {
 
     @@map("time_slots")
 }
+// enum DayOfWeek {
+//     MONDAY 
+//     TUESDAY
+//     WEDNESDAY
+//     THURSDAY
+//     FRIDAY
+//     SATURDAY
+//     SUNDAY
+// }
+
+enum SlotStatus {
+    ACTIVE
+    INACTIVE
+}
 
 // Booking: Specific instance of a booking (date + slot, with status for workflow)
 model Booking {
@@ -44,7 +58,7 @@ model Booking {
     coachId          String        @db.ObjectId // Coach involved
     timeSlotId       String        @db.ObjectId // References slot template
     bookingDate      DateTime // Full datetime (specific date + slot time)
-    status           BookingStatus @default(PENDING) // Workflow status
+    status           BookingStatus @default(CONFIRMED) // Workflow status
     rescheduleFromId String?       @db.ObjectId // Link to old booking for reschedule
     notes            String? // Optional notes (e.g., session type)
 
@@ -61,26 +75,11 @@ model Booking {
     @@map("bookings")
 }
 
-// enum DayOfWeek {
-//     MONDAY 
-//     TUESDAY
-//     WEDNESDAY
-//     THURSDAY
-//     FRIDAY
-//     SATURDAY
-//     SUNDAY
-// }
-
-enum SlotStatus {
-    ACTIVE
-    INACTIVE
-}
-
 enum BookingStatus {
-    PENDING // New booking by athlete, awaiting coach confirmation
+    CONFIRMED 
     RESCHEDULE_REQUEST // Reschedule request from athlete (linked to old booking)
-    CONFIRMED // Coach has confirmed the booking
-    RESCHEDULED // Reschedule approved by coach
+    RESCHEDULED_ACCEPTED // Reschedule accepted by coach
+    RESCHEDULED_CANCELED // Reschedule canceled by coach
     CANCELLED // Booking cancelled by athlete or coach
-    COMPLETED // Session completed (auto-update after date passes)
+    COMPLETED // Session completed 
 }
