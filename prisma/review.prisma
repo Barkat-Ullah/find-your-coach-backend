@@ -15,4 +15,3 @@ model Review {
 
     @@map("reviews")
 }
-             

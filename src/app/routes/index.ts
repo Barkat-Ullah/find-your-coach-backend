@@ -11,6 +11,8 @@ import { ScheduleRoutes } from '../modules/Schedule/Schedule.routes';
 import { CoachRoutes } from '../modules/Coach/Coach.routes';
 import { ReportRoutes } from '../modules/Report/Report.routes';
 import { BookingRoutes } from '../modules/Booking/Booking.routes';
+import { ReviewRoutes } from '../modules/Review/Review.routes';
+import { MetaRoutes } from '../modules/meta/meta.routes';
 
 const router = express.Router();
 
@@ -63,6 +65,14 @@ const moduleRoutes = [
   {
     path: '/booking',
     route: BookingRoutes,
+  },
+  {
+    path: '/review',
+    route: ReviewRoutes,
+  },
+  {
+    path: '/meta',
+    route: MetaRoutes,
   },
 ];
 

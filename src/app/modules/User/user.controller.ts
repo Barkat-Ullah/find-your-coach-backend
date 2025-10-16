@@ -13,6 +13,15 @@ const getAllUsers = catchAsync(async (req, res) => {
     ...result,
   });
 });
+const getAllUnApproveCoach = catchAsync(async (req, res) => {
+  const result = await UserServices.getAllUnApproveCoach();
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    message: 'All un approved users retrieved successfully',
+    data: result,
+  });
+});
 
 const getMyProfile = catchAsync(async (req, res) => {
   const id = req.user.id;
@@ -136,7 +145,6 @@ const updateMyProfile = catchAsync(async (req, res) => {
   });
 });
 
-
 export const UserControllers = {
   getAllUsers,
   getMyProfile,
@@ -148,4 +156,5 @@ export const UserControllers = {
   hardDeleteUser,
   updateUser,
   updateMyProfile,
+  getAllUnApproveCoach,
 };

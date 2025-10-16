@@ -40,16 +40,16 @@ const createIntoDb = async (req: Request) => {
       },
     },
     update: {
-      startTime: startDateTime, // Store DateTime object, not formatted string
-      endTime: endDateTime, // Store DateTime object, not formatted string
+      startTime: startDateTime,
+      endTime: endDateTime, 
       isActive: true,
       updatedAt: new Date(),
     },
     create: {
       coachId: coach.id,
       slotDate: slotDateObj,
-      startTime: startDateTime, // Store DateTime object, not formatted string
-      endTime: endDateTime, // Store DateTime object, not formatted string
+      startTime: startDateTime, 
+      endTime: endDateTime, 
       isActive: true,
     },
   });

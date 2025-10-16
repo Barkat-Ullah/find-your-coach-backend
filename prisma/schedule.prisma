@@ -56,7 +56,7 @@ model Booking {
     id               String        @id @default(auto()) @map("_id") @db.ObjectId
     athleteId        String        @db.ObjectId // Athlete booking
     coachId          String        @db.ObjectId // Coach involved
-    timeSlotId       String        @db.ObjectId // References slot template
+    timeSlotId       String?        @db.ObjectId // References slot template
     bookingDate      DateTime // Full datetime (specific date + slot time)
     status           BookingStatus @default(CONFIRMED) // Workflow status
     rescheduleFromId String?       @db.ObjectId // Link to old booking for reschedule
@@ -64,7 +64,7 @@ model Booking {
 
     athlete         Athlete   @relation(fields: [athleteId], references: [id])
     coach           Coach     @relation(fields: [coachId], references: [id])
-    timeSlot        TimeSlot  @relation(fields: [timeSlotId], references: [id])
+    timeSlot        TimeSlot?  @relation(fields: [timeSlotId], references: [id])
     // Self-relation for chain
     rescheduledFrom Booking?  @relation("RescheduleChain", fields: [rescheduleFromId], references: [id], onDelete: NoAction, onUpdate: NoAction)
     booking         Booking[] @relation("RescheduleChain")
@@ -81,5 +81,5 @@ enum BookingStatus {
     RESCHEDULED_ACCEPTED // Reschedule accepted by coach
     RESCHEDULED_CANCELED // Reschedule canceled by coach
     CANCELLED // Booking cancelled by athlete or coach
-    COMPLETED // Session completed 
+    FINISHED // Session completed 
 }

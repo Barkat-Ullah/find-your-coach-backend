@@ -265,6 +265,7 @@ const getMyBooking = async (email: string) => {
     where: { email },
   });
 
+
   const coach = await prisma.coach.findUnique({
     where: { email },
   });
@@ -275,11 +276,25 @@ const getMyBooking = async (email: string) => {
 
   let bookings;
 
+  // Base where clause 
+  const baseWhere = {
+    status: {
+      in: [
+        BookingStatus.CONFIRMED,
+        BookingStatus.RESCHEDULED_ACCEPTED,
+        BookingStatus.FINISHED,
+        BookingStatus.RESCHEDULE_REQUEST,
+      ],
+      // CANCELLED এবং RESCHEDULED_CANCELED 
+    },
+  };
+
   if (athlete) {
     // Get bookings for athlete
     bookings = await prisma.booking.findMany({
       where: {
         athleteId: athlete.id,
+        ...baseWhere,
       },
       select: {
         id: true,
@@ -290,6 +305,7 @@ const getMyBooking = async (email: string) => {
         status: true,
         rescheduleFromId: true,
         notes: true,
+        createdAt: true,
         coach: {
           select: {
             id: true,
@@ -314,6 +330,20 @@ const getMyBooking = async (email: string) => {
             endTime: true,
           },
         },
+        // Original booking info 
+        rescheduledFrom: {
+          select: {
+            id: true,
+            bookingDate: true,
+            status: true,
+            timeSlot: {
+              select: {
+                startTime: true,
+                endTime: true,
+              },
+            },
+          },
+        },
       },
       orderBy: {
         bookingDate: 'desc',
@@ -324,6 +354,7 @@ const getMyBooking = async (email: string) => {
     bookings = await prisma.booking.findMany({
       where: {
         coachId: coach.id,
+        ...baseWhere,
       },
       select: {
         id: true,
@@ -334,6 +365,7 @@ const getMyBooking = async (email: string) => {
         status: true,
         rescheduleFromId: true,
         notes: true,
+        createdAt: true,
         athlete: {
           select: {
             id: true,
@@ -350,6 +382,19 @@ const getMyBooking = async (email: string) => {
             endTime: true,
           },
         },
+        rescheduledFrom: {
+          select: {
+            id: true,
+            bookingDate: true,
+            status: true,
+            timeSlot: {
+              select: {
+                startTime: true,
+                endTime: true,
+              },
+            },
+          },
+        },
       },
       orderBy: {
         bookingDate: 'desc',
@@ -359,9 +404,709 @@ const getMyBooking = async (email: string) => {
 
   return bookings;
 };
+const cancelBooking = async (
+  userEmail: string,
+  userRole: UserRoleEnum,
+  bookingId: string,
+) => {
+  
+  const user =
+    userRole === UserRoleEnum.ATHLETE
+      ? await prisma.athlete.findUnique({ where: { email: userEmail } })
+      : await prisma.coach.findUnique({ where: { email: userEmail } });
+
+  if (!user) {
+    throw new AppError(httpStatus.NOT_FOUND, 'User not found');
+  }
+
+ 
+  const booking = await prisma.booking.findUnique({
+    where: { id: bookingId },
+    include: {
+      athlete: {
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+        },
+      },
+      coach: {
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+        },
+      },
+      timeSlot: {
+        select: {
+          id: true,
+          startTime: true,
+          endTime: true,
+        },
+      },
+    },
+  });
+
+  if (!booking) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Booking not found');
+  }
+
+  // Authorization check
+  const isAthlete = userRole === UserRoleEnum.ATHLETE && booking.athleteId === user.id;
+  const isCoach = userRole === UserRoleEnum.COACH && booking.coachId === user.id;
+
+  if (!isAthlete && !isCoach) {
+    throw new AppError(
+      httpStatus.FORBIDDEN,
+      'You are not authorized to cancel this booking'
+    );
+  }
+
+  if (booking.status === BookingStatus.CANCELLED) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'This booking is already cancelled');
+  }
+
+  if (booking.status === BookingStatus.FINISHED) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Cannot cancel a finished booking');
+  }
+
+
+  const cancelledBooking = await prisma.$transaction(async (tx) => {
+
+    const updated = await tx.booking.update({
+      where: { id: bookingId },
+      data: {
+        status: BookingStatus.CANCELLED,
+      },
+      select: {
+        id: true,
+        bookingDate: true,
+        status: true,
+        notes: true,
+        updatedAt: true,
+        athlete: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+          },
+        },
+        coach: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+          },
+        },
+        timeSlot: {
+          select: {
+            id: true,
+            startTime: true,
+            endTime: true,
+          },
+        },
+      },
+    });
+
+
+    if (booking.timeSlotId) {
+      await tx.timeSlot.update({
+        where: { id: booking.timeSlotId },
+        data: {
+          isBooked: false,
+        },
+      });
+    }
+
+    return updated;
+  });
+
+  return cancelledBooking;
+};
+
+const finishBooking = async (
+  userEmail: string,
+  userRole: UserRoleEnum,
+  bookingId: string,
+) => {
+
+  if (userRole !== UserRoleEnum.COACH) {
+    throw new AppError(
+      httpStatus.FORBIDDEN,
+      'Only coaches can mark bookings as finished'
+    );
+  }
+
+ 
+  const coach = await prisma.coach.findUnique({
+    where: { email: userEmail },
+  });
+
+  if (!coach) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Coach not found');
+  }
+
+
+  const booking = await prisma.booking.findUnique({
+    where: { id: bookingId },
+    include: {
+      athlete: {
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+        },
+      },
+      coach: {
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+        },
+      },
+      timeSlot: {
+        select: {
+          id: true,
+          startTime: true,
+          endTime: true,
+        },
+      },
+    },
+  });
+
+  if (!booking) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Booking not found');
+  }
+
+
+  if (booking.coachId !== coach.id) {
+    throw new AppError(
+      httpStatus.FORBIDDEN,
+      'You are not authorized to finish this booking'
+    );
+  }
+
+
+  if (booking.status === BookingStatus.FINISHED) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'This booking is already finished');
+  }
+
+  if (booking.status === BookingStatus.CANCELLED) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Cannot finish a cancelled booking');
+  }
+
+  // if (![BookingStatus.CONFIRMED, BookingStatus.RESCHEDULED_ACCEPTED].includes(booking.status)) {
+  //   throw new AppError(
+  //     httpStatus.BAD_REQUEST,
+  //     'Only confirmed or rescheduled accepted bookings can be finished'
+  //   );
+  // }
+
+  const currentDate = new Date();
+  if (booking.bookingDate > currentDate) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'Cannot finish a booking that has not occurred yet'
+    );
+  }
+
+
+  const finishedBooking = await prisma.booking.update({
+    where: { id: bookingId },
+    data: {
+      status: BookingStatus.FINISHED,
+    },
+    select: {
+      id: true,
+      bookingDate: true,
+      status: true,
+      notes: true,
+      updatedAt: true,
+      athlete: {
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+        },
+      },
+      coach: {
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+        },
+      },
+      timeSlot: {
+        select: {
+          id: true,
+          startTime: true,
+          endTime: true,
+        },
+      },
+    },
+  });
+
+  return finishedBooking;
+};
+
+
+// Reschedule Request
+const requestReschedule = async (
+  userEmail: string,
+  userRole: UserRoleEnum,
+  payload: {
+    bookingId: string;
+    newTimeSlotId: string;
+    newBookingDate: string;
+    notes?: string;
+  },
+) => {
+  console.log(userEmail)
+  const user =
+    userRole === UserRoleEnum.ATHLETE
+      ? await prisma.athlete.findUnique({ where: { email: userEmail } })
+      : await prisma.coach.findUnique({ where: { email: userEmail } });
+
+  if (!user) {
+    throw new AppError(httpStatus.NOT_FOUND, 'User not found');
+  }
+
+  // Original booking check 
+  const originalBooking = await prisma.booking.findUnique({
+    where: { id: payload.bookingId },
+    include: {
+      athlete: true,
+      coach: true,
+      timeSlot: {
+        include: {
+          availability: true,
+        },
+      },
+    },
+  });
+
+  if (!originalBooking) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Original booking not found');
+  }
+
+  const isAthlete =
+    userRole === UserRoleEnum.ATHLETE && originalBooking.athleteId === user.id;
+  const isCoach =
+    userRole === UserRoleEnum.COACH && originalBooking.coachId === user.id;
+
+  if (!isAthlete && !isCoach) {
+    throw new AppError(
+      httpStatus.FORBIDDEN,
+      'You are not authorized to reschedule this booking',
+    );
+  }
+
+  // Check করা original booking already reschedule request cancelled/finished
+  if (originalBooking.status === BookingStatus.RESCHEDULE_REQUEST) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'This booking already has a pending reschedule request',
+    );
+  }
+
+  // if (
+  //   [BookingStatus.CANCELLED, BookingStatus.FINISHED].includes(
+  //     originalBooking.status,
+  //   )
+  // ) {
+  //   throw new AppError(
+  //     httpStatus.BAD_REQUEST,
+  //     'Cannot reschedule a cancelled or finished booking',
+  //   );
+  // }
+
+  // New time slot check
+  const newTimeSlot = await prisma.timeSlot.findUnique({
+    where: { id: payload.newTimeSlotId },
+    include: {
+      availability: true,
+    },
+  });
+
+  if (!newTimeSlot) {
+    throw new AppError(httpStatus.NOT_FOUND, 'New time slot not found');
+  }
+
+  if (newTimeSlot.availability.coachId !== originalBooking.coachId) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'New time slot must be from the same coach',
+    );
+  }
+
+  const newBookingDate = new Date(payload.newBookingDate);
+
+  const availabilityDate = new Date(newTimeSlot.availability.slotDate);
+  availabilityDate.setHours(0, 0, 0, 0);
+  const requestedDate = new Date(newBookingDate);
+  requestedDate.setHours(0, 0, 0, 0);
+
+  if (availabilityDate.getTime() !== requestedDate.getTime()) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'Selected time slot does not belong to the requested date',
+    );
+  }
+
+  const existingBooking = await prisma.booking.findFirst({
+    where: {
+      timeSlotId: payload.newTimeSlotId,
+      bookingDate: newBookingDate,
+      status: {
+        in: [
+          BookingStatus.CONFIRMED,
+          BookingStatus.RESCHEDULE_REQUEST,
+          BookingStatus.RESCHEDULED_ACCEPTED,
+        ],
+      },
+    },
+  });
+
+  if (existingBooking) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'This time slot is already booked for the selected date',
+    );
+  }
+
+  // Check করা past date কিনা
+  // if (newBookingDate < new Date()) {
+  //   throw new AppError(
+  //     httpStatus.BAD_REQUEST,
+  //     'Cannot reschedule to a past date',
+  //   );
+  // }
+
+  // Transaction এ original booking update এবং new reschedule request create করা
+  const result = await prisma.$transaction(async tx => {
+    // New reschedule request booking create করা (status: RESCHEDULE_REQUEST)
+    const rescheduleBooking = await tx.booking.create({
+      data: {
+        athleteId: originalBooking.athleteId,
+        coachId: originalBooking.coachId,
+        timeSlotId: payload.newTimeSlotId,
+        bookingDate: newBookingDate,
+        status: BookingStatus.RESCHEDULE_REQUEST,
+        rescheduleFromId: payload.bookingId,
+        notes:
+          payload.notes || `Reschedule requested by ${userRole.toLowerCase()}`,
+      },
+      include: {
+        athlete: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+          },
+        },
+        coach: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+          },
+        },
+        timeSlot: {
+          include: {
+            availability: true,
+          },
+        },
+        rescheduledFrom: {
+          include: {
+            timeSlot: {
+              include: {
+                availability: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return rescheduleBooking;
+  });
+
+  return result;
+};
+
+// Reschedule Request 
+const respondToReschedule = async (
+  userEmail: string,
+  userRole: UserRoleEnum,
+  payload: {
+    rescheduleRequestId: string;
+    status: 'RESCHEDULED_ACCEPTED' | 'RESCHEDULED_CANCELED';
+  },
+) => {
+  
+  const user =
+    userRole === UserRoleEnum.ATHLETE
+      ? await prisma.athlete.findUnique({ where: { email: userEmail } })
+      : await prisma.coach.findUnique({ where: { email: userEmail } });
+
+  if (!user) {
+    throw new AppError(httpStatus.NOT_FOUND, 'User not found');
+  }
+
+  // Reschedule request booking 
+  const rescheduleRequest = await prisma.booking.findUnique({
+    where: { id: payload.rescheduleRequestId },
+    include: {
+      athlete: true,
+      coach: true,
+      rescheduledFrom: {
+        include: {
+          timeSlot: {
+            include: {
+              availability: true,
+            },
+          },
+        },
+      },
+      timeSlot: {
+        include: {
+          availability: true,
+        },
+      },
+    },
+  });
+
+  if (!rescheduleRequest) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Reschedule request not found');
+  }
+
+  // Check করা এটা reschedule request কিনা
+  if (rescheduleRequest.status !== BookingStatus.RESCHEDULE_REQUEST) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'This is not a pending reschedule request',
+    );
+  }
+
+  // Check করা user এই booking এর সাথে related কিনা
+  const isAthlete =
+    userRole === UserRoleEnum.ATHLETE &&
+    rescheduleRequest.athleteId === user.id;
+  const isCoach =
+    userRole === UserRoleEnum.COACH && rescheduleRequest.coachId === user.id;
+
+  if (!isAthlete && !isCoach) {
+    throw new AppError(
+      httpStatus.FORBIDDEN,
+      'You are not authorized to respond to this reschedule request',
+    );
+  }
+
+  if (!rescheduleRequest.rescheduledFrom) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Original booking not found');
+  }
+
+  // status handle 
+  if (payload.status === BookingStatus.RESCHEDULED_ACCEPTED) {
+    // Accept করলে reschedule complete করা
+    const result = await prisma.$transaction(async tx => {
+      // Original booking cancel করা
+      await tx.booking.update({
+        where: { id: rescheduleRequest.rescheduleFromId! },
+        data: {
+          status: BookingStatus.CANCELLED,
+        },
+      });
+
+      // New booking accept করা (status: RESCHEDULED_ACCEPTED)
+      const acceptedBooking = await tx.booking.update({
+        where: { id: payload.rescheduleRequestId },
+        data: {
+          status: BookingStatus.RESCHEDULED_ACCEPTED,
+        },
+        include: {
+          athlete: {
+            select: {
+              id: true,
+              fullName: true,
+              email: true,
+            },
+          },
+          coach: {
+            select: {
+              id: true,
+              fullName: true,
+              email: true,
+            },
+          },
+          timeSlot: {
+            include: {
+              availability: true,
+            },
+          },
+          rescheduledFrom: true,
+        },
+      });
+
+      return acceptedBooking;
+    });
+
+    return result;
+  } else if (payload.status === BookingStatus.RESCHEDULED_CANCELED) {
+    // Cancel করলে reschedule request বাতিল (status: RESCHEDULED_CANCELED)
+    const result = await prisma.$transaction(async tx => {
+      // Reschedule request cancel করা
+      await tx.booking.update({
+        where: { id: payload.rescheduleRequestId },
+        data: {
+          status: BookingStatus.RESCHEDULED_CANCELED,
+        },
+      });
+
+      // Original booking আগের মতোই থাকবে (CONFIRMED status এ)
+      const originalBooking = await tx.booking.findUnique({
+        where: { id: rescheduleRequest.rescheduleFromId! },
+        include: {
+          athlete: {
+            select: {
+              id: true,
+              fullName: true,
+              email: true,
+            },
+          },
+          coach: {
+            select: {
+              id: true,
+              fullName: true,
+              email: true,
+            },
+          },
+          timeSlot: {
+            include: {
+              availability: true,
+            },
+          },
+        },
+      });
+
+      return {
+        canceledRequest: await tx.booking.findUnique({
+          where: { id: payload.rescheduleRequestId },
+          include: {
+            athlete: {
+              select: {
+                id: true,
+                fullName: true,
+                email: true,
+              },
+            },
+            coach: {
+              select: {
+                id: true,
+                fullName: true,
+                email: true,
+              },
+            },
+            timeSlot: {
+              include: {
+                availability: true,
+              },
+            },
+          },
+        }),
+        originalBooking,
+      };
+    });
+
+    return result;
+  } else {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Invalid action provided');
+  }
+};
+
+// Get Pending Reschedule Requests
+const getPendingRescheduleRequests = async (
+  userEmail: string,
+  userRole: UserRoleEnum,
+) => {
+
+  const user =
+    userRole === UserRoleEnum.ATHLETE
+      ? await prisma.athlete.findUnique({ where: { email: userEmail } })
+      : await prisma.coach.findUnique({ where: { email: userEmail } });
+
+  if (!user) {
+    throw new AppError(httpStatus.NOT_FOUND, 'User not found');
+  }
+
+  const whereClause: any = {
+    status: BookingStatus.RESCHEDULE_REQUEST,
+  };
+
+  if (userRole === UserRoleEnum.ATHLETE) {
+    whereClause.athleteId = user.id;
+  } else if (userRole === UserRoleEnum.COACH) {
+    whereClause.coachId = user.id;
+  }
+
+  const requests = await prisma.booking.findMany({
+    where: whereClause,
+    select: {
+      id: true,
+      bookingDate: true,
+      status: true,
+      notes: true,
+      createdAt: true,
+      athlete: {
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+        },
+      },
+      coach: {
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+        },
+      },
+      timeSlot: {
+        select: {
+          id: true,
+          startTime: true,
+          endTime: true,
+        },
+      },
+      rescheduledFrom: {
+        select: {
+          id: true,
+          bookingDate: true,
+          timeSlot: {
+            select: {
+              id: true,
+              startTime: true,
+              endTime: true,
+            },
+          },
+        },
+      },
+    },
+    orderBy: {
+      createdAt: 'desc',
+    },
+  });
+  return requests;
+};
+
 
 export const BookingServices = {
   createIntoDb,
   getAllBooking,
   getMyBooking,
+  getPendingRescheduleRequests,
+  respondToReschedule,
+  requestReschedule,
+  cancelBooking,
+  finishBooking,
 };

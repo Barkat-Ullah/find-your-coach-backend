@@ -33,6 +33,7 @@ const getAllUsersFromDB = async (query: any) => {
       email: true,
       role: true,
       status: true,
+      isApproved: true,
     })
     .execute();
 
@@ -51,6 +52,23 @@ const getAllUsersFromDB = async (query: any) => {
     ...result,
     data: usersWithCount,
   };
+};
+
+const getAllUnApproveCoach = async () => {
+  const result = await prisma.user.findMany({
+    where: {
+      isApproved: false,
+    },
+    select: {
+      id: true,
+      fullName: true,
+      email: true,
+      role: true,
+      status: true,
+      isApproved: true,
+    },
+  });
+  return result;
 };
 
 const getMyProfileFromDB = async (id: string) => {
@@ -95,8 +113,8 @@ const getMyProfileFromDB = async (id: string) => {
         certification: true,
         address: true,
         price: true,
-        age:true,
-        gender:true,
+        age: true,
+        gender: true,
         specialty: {
           select: {
             id: true,
@@ -513,6 +531,7 @@ const updateUserIntoDb = async (req: Request, id: string) => {
 
 export const UserServices = {
   getAllUsersFromDB,
+  getAllUnApproveCoach,
   getMyProfileFromDB,
   getUserDetailsFromDB,
   updateUserRoleStatusIntoDB,
