@@ -9,6 +9,7 @@ model User {
 
   otp       String?
   otpExpiry DateTime?
+  fcmToken  String?
 
   isEmailVerified Boolean @default(false)
   isApproved      Boolean @default(false)
@@ -16,7 +17,8 @@ model User {
 
   stripeCustomerId String?
 
-  notifications NotificationUser[]
+  receiver Notification[] @relation("Receiver")
+  sender   Notification[] @relation("Sender")
 
   //relation by email
   admin   Admin?

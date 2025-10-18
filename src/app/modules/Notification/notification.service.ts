@@ -1,162 +1,334 @@
-import { NotificationType, NotificationUser, User } from '@prisma/client';
-import QueryBuilder from '../../builder/QueryBuilder';
-import { getSocket } from '../../utils/socket';
+import httpStatus from 'http-status';
+import admin from './firebaseAdmin';
+import AppError from '../../errors/AppError';
 import { prisma } from '../../utils/prisma';
-
-const createNotification = async (payload: {
+type SendNotificationParams = {
+  userId: string;
+  senderId: string;
   title: string;
-  message: string;
-  type: NotificationType;
-  userIds: string[];
-  redirectEndpoint?: string
-}) => {
-  const { title, message, type, userIds, redirectEndpoint } = payload;
+  body: string;
+};
 
-  const io = getSocket();
-
-  // Create the notification
-  const notification = await prisma.notification.create({
-    data: {
-      title,
-      message,
-      type,
-      redirectEndpoint: redirectEndpoint || ''
-    },
-  });
-
-  // Save notification recipients and emit socket events
-  if (userIds.length > 0) {
-    const NotificationUsers = userIds.map(userId => ({
-      notificationId: notification.id,
-      userId,
-    }));
-
-    await prisma.notificationUser.createMany({
-      data: NotificationUsers,
-    });
-
-    userIds.forEach(id => {
-      console.log(`Emitting to user: ${id}`);
-      io.to(id).emit('notification', {
-        ...notification,
-        isRead: false,
-      });
-      console.log(`Notification emitted to ${id}`);
-    });
-
-    console.log(`Notification sent to ${userIds.length} users:`, userIds);
-  } else {
-    console.log('No users provided for notification');
+export const sendSingleNotificationUtils = async ({
+  userId,
+  senderId,
+  title,
+  body,
+}: SendNotificationParams) => {
+  if (!title || !body) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Title and body are required');
   }
 
-  return notification;
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { fcmToken: true },
+    });
+
+    if (!user?.fcmToken) {
+      throw new AppError(httpStatus.NOT_FOUND, 'User not found with FCM token');
+    }
+
+    const message = {
+      notification: { title, body },
+      token: user.fcmToken,
+    };
+
+    // Save in DB
+    await prisma.notification.create({
+      data: { receiverId: userId, senderId, title, body },
+    });
+
+    // Send via Firebase
+    return await admin.messaging().send(message);
+  } catch (error: any) {
+    console.error('Error sending notification:', error);
+
+    switch (error.code) {
+      case 'messaging/invalid-registration-token':
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          'Invalid FCM registration token',
+        );
+      case 'messaging/registration-token-not-registered':
+        throw new AppError(
+          httpStatus.NOT_FOUND,
+          'FCM token is no longer registered',
+        );
+      default:
+        throw new AppError(
+          httpStatus.INTERNAL_SERVER_ERROR,
+          error.message || 'Failed to send notification',
+        );
+    }
+  }
 };
 
-const getAllNotificationsByUser = async (
-  id: string,
-  query: Record<string, unknown>,
-) => {
-  query.userId = id;
-  const notificationQuery = new QueryBuilder(
-    prisma.notificationUser,
-    query,
-  );
-  const result = await notificationQuery
-    .search(['name'])
-    .filter()
-    .sort()
-    .exclude()
-    .paginate()
-    .customFields({
-      id: true,
-      isRead: true,
-      notificationId: true,
-      createdAt: true,
+// Send notification to a single user
+const sendSingleNotification = async (req: any) => {
+  try {
+    const { userId } = req.params;
+    const { title, body } = req.body;
+
+    if (!title || !body) {
+      throw new AppError(400, 'Title and body are required');
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+    console.log(user?.fcmToken);
+    if (!user || !user.fcmToken) {
+      throw new AppError(404, 'User not found with FCM token');
+    }
+
+    const message = {
       notification: {
-        select: {
-          id: true,
-          message: true,
-          createdAt: true,
-          title: true,
-          type: true,
-          redirectEndpoint: true
-        }
+        title,
+        body,
       },
-      receivedAt: true,
-      updatedAt: true,
-      userId: true,
-      user: {
-        select: {
-          fullName: true,
-          email: true,
-          role: true
-        }
-      }
-    })
-    .execute();
-  return result
+      token: user.fcmToken,
+    };
+
+    await prisma.notification.create({
+      data: {
+        receiverId: userId,
+        senderId: req.user.id,
+        title,
+        body,
+      },
+    });
+
+    const response = await admin.messaging().send(message);
+    return response;
+  } catch (error: any) {
+    console.error('Error sending notification:', error);
+    if (error.code === 'messaging/invalid-registration-token') {
+      throw new AppError(400, 'Invalid FCM registration token');
+    } else if (error.code === 'messaging/registration-token-not-registered') {
+      throw new AppError(404, 'FCM token is no longer registered');
+    } else {
+      throw new AppError(500, error.message || 'Failed to send notification');
+    }
+  }
 };
 
-const getUsersByNotification = async (notificationId: string) => {
-  const users = await prisma.notificationUser.findMany({
-    where: {
-      notificationId: notificationId,
-    },
-    include: {
-      user: true,
-    },
+// Send notifications to all users with valid FCM tokens
+const sendNotifications = async (req: any) => {
+  try {
+    const { title, body } = req.body;
+
+    if (!title || !body) {
+      throw new AppError(400, 'Title and body are required');
+    }
+
+    const users = await prisma.user.findMany({
+      where: {
+        fcmToken: {
+          not: null,
+        },
+      },
+      select: {
+        id: true,
+        fcmToken: true,
+      },
+    });
+
+    if (!users || users.length === 0) {
+      throw new AppError(404, 'No users found with FCM tokens');
+    }
+
+    const fcmTokens = users.map(user => user.fcmToken);
+
+    const message = {
+      notification: {
+        title,
+        body,
+      },
+      tokens: fcmTokens,
+    };
+
+    const response = await admin
+      .messaging()
+      .sendEachForMulticast(message as any);
+
+    const successIndices = response.responses
+      .map((res: any, idx: number) => (res.success ? idx : null))
+      .filter((_: any, idx: number) => idx !== null) as number[];
+
+    const successfulUsers = successIndices.map(idx => users[idx]);
+
+    const notificationData = successfulUsers.map(user => ({
+      receiverId: user.id,
+      senderId: req.user.id,
+      title,
+      body,
+    }));
+
+    await prisma.notification.createMany({
+      data: notificationData,
+    });
+
+    const failedTokens = response.responses
+      .map((res: any, idx: number) => (!res.success ? fcmTokens[idx] : null))
+      .filter((token): token is string => token !== null);
+
+    return {
+      successCount: response.successCount,
+      failureCount: response.failureCount,
+      failedTokens,
+    };
+  } catch (error: any) {
+    throw new AppError(500, error.message || 'Failed to send notifications');
+  }
+};
+
+const sendToAdmins = async (req: any, title: string, body: string) => {
+  const admins = await prisma.user.findMany({
+    where: { role: 'ADMIN' }, //fcmToken: { not: null }
+    select: { id: true, fcmToken: true },
+  });
+  // if (!admins.length) throw new AppError(404, 'No admins with FCM');
+
+  // const fcmTokens = admins.map(a => a.fcmToken);
+  const message = { notification: { title, body } }; //tokens: fcmTokens
+  const response = await admin.messaging().sendEachForMulticast(message as any);
+
+  const successIndices = response.responses
+    .map((res: any, i: number) => (res.success ? i : null))
+    .filter((idx): idx is number => idx !== null);
+
+  const successfulAdmins = successIndices.map(i => admins[i]);
+  await prisma.notification.createMany({
+    data: successfulAdmins.map(a => ({
+      receiverId: a.id,
+      senderId: req.user.id,
+      title,
+      body,
+    })),
   });
 
-  return users.map(recipient => recipient.user);
+  return {
+    successCount: response.successCount,
+    failureCount: response.failureCount,
+  };
 };
 
-const markNotificationAsRead = async (
+// Fetch notifications for the current user
+
+const getNotificationsFromDB = async (req: any) => {
+  try {
+    const userId = req.user.id;
+
+    // Validate user ID
+    if (!userId) {
+      throw new AppError(400, 'User ID is required');
+    }
+
+    // Fetch notifications for the current user
+    const notifications = await prisma.notification.findMany({
+      where: {
+        receiverId: userId,
+      },
+      include: {
+        sender: {
+          select: {
+            id: true,
+            email: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    // Check if notifications exist
+
+    // Return formatted notifications
+    return notifications.map(notification => ({
+      id: notification.id,
+      title: notification.title,
+      body: notification.body,
+      isRead: notification.isRead,
+      createdAt: notification.createdAt,
+      sender: {
+        id: notification.sender.id,
+      },
+    }));
+  } catch (error: any) {
+    throw new AppError(500, error.message || 'Failed to fetch notifications');
+  }
+};
+
+// Fetch a single notification and mark it as read
+const getSingleNotificationFromDB = async (
+  req: any,
   notificationId: string,
-  userId: string,
 ) => {
-  const updatedRecipient = await prisma.notificationUser.updateMany({
-    where: {
-      notificationId: notificationId,
-      userId: userId,
-    },
-    data: {
-      isRead: true,
-    },
-  });
+  try {
+    const userId = req.user.id;
 
-  return updatedRecipient;
-};
+    // Validate user and notification ID
+    if (!userId) {
+      throw new AppError(400, 'User ID is required');
+    }
 
-const getUnreadNotificationCount = async (userId: string) => {
-  const count = await prisma.notificationUser.count({
-    where: {
-      userId: userId,
-      isRead: false,
-    },
-  });
+    if (!notificationId) {
+      throw new AppError(400, 'Notification ID is required');
+    }
 
-  return count;
-};
+    // Fetch the notification
+    const notification = await prisma.notification.findFirst({
+      where: {
+        id: notificationId,
+        receiverId: userId,
+      },
+      include: {
+        sender: {
+          select: {
+            id: true,
+            email: true,
+          },
+        },
+      },
+    });
 
-const markAllNotificationsAsRead = async (userId: string) => {
-  const updatedRecipients = await prisma.notificationUser.updateMany({
-    where: {
-      userId: userId,
-      isRead: false,
-    },
-    data: {
-      isRead: true,
-    },
-  });
+    // Mark the notification as read
+    const updatedNotification = await prisma.notification.update({
+      where: { id: notificationId },
+      data: { isRead: true },
+      include: {
+        sender: {
+          select: {
+            id: true,
+            email: true,
+          },
+        },
+      },
+    });
 
-  return updatedRecipients;
+    // Return the updated notification
+    return {
+      id: updatedNotification.id,
+      title: updatedNotification.title,
+      body: updatedNotification.body,
+      isRead: updatedNotification.isRead,
+      createdAt: updatedNotification.createdAt,
+      sender: {
+        id: updatedNotification.sender.id,
+        email: updatedNotification.sender.email,
+      },
+    };
+  } catch (error: any) {
+    throw new AppError(500, error.message || 'Failed to fetch notification');
+  }
 };
 
 export const notificationServices = {
-  createNotification,
-  getAllNotificationsByUser,
-  getUsersByNotification,
-  markNotificationAsRead,
-  getUnreadNotificationCount,
-  markAllNotificationsAsRead,
+  sendSingleNotification,
+  sendNotifications,
+  getNotificationsFromDB,
+  getSingleNotificationFromDB,
+  sendToAdmins,
 };

@@ -8,10 +8,11 @@ const adminData = {
   email: 'admin1@gmail.com',
   password: '123456',
   phoneNumber: '01821558090',
+  // fcmToken,
   role: UserRoleEnum.ADMIN,
   isAgreeWithTerms: true,
   isEmailVerified: true,
-  isApproved: true, // Added to match schema default
+  isApproved: true, 
 };
 
 const seedSuperAdmin = async () => {
@@ -34,12 +35,13 @@ const seedSuperAdmin = async () => {
       // Create User and associated Admin record in a transaction
       await prisma.$transaction(async tx => {
         // Create User record
-        const newUser = await tx.user.create({
+         await tx.user.create({
           data: {
             fullName: adminData.fullName,
             email: adminData.email,
             password: hashedPassword,
             role: adminData.role,
+            // fcmToken:adminData.fcmToken,
             isEmailVerified: adminData.isEmailVerified,
             isApproved: adminData.isApproved,
             createdAt: new Date(),

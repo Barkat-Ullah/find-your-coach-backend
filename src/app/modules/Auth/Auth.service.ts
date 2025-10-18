@@ -36,7 +36,9 @@ const loginWithOtpFromDB = async (
   );
   if (!isCorrectPassword)
     throw new AppError(httpStatus.BAD_REQUEST, 'Password incorrect');
-
+  if (userData.isDeleted) {
+    throw new AppError(httpStatus.UNAUTHORIZED, 'You are deleted !');
+  }
   if (userData.role !== UserRoleEnum.ADMIN && !userData.isEmailVerified) {
     const otp = generateOTP().toString();
 
@@ -123,7 +125,7 @@ const registerAthleteIntoDB = async (
           role: UserRoleEnum.ATHLETE,
           otp,
           otpExpiry: otpExpiryTime(),
-          isApproved: true, 
+          isApproved: true,
         },
       });
 
@@ -239,7 +241,7 @@ const registerCoachIntoDB = async (
           profile: profileUrl ?? undefined,
           phoneNumber: payload.phoneNumber ?? undefined,
           experience: payload.experience ?? undefined,
-          price:payload.price,
+          price: payload.price,
           location: payload.location ?? undefined,
           expertise: expertiseArr,
           certification: certificateUrl ?? payload.certification ?? undefined,
@@ -247,6 +249,7 @@ const registerCoachIntoDB = async (
           latitude: payload.latitude ? Number(payload.latitude) : undefined,
           longitude: payload.longitude ? Number(payload.longitude) : undefined,
           specialtyId: payload.specialtyId,
+          gender: payload.gender,
         },
       });
 

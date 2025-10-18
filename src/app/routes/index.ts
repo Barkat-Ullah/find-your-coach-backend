@@ -1,5 +1,4 @@
 import express from 'express';
-import { NotificationsRouters } from '../modules/Notification/notification.route';
 import { AuthRouters } from '../modules/Auth/Auth.routes';
 import { UserRouters } from '../modules/User/user.routes';
 import { PaymentRoutes } from '../modules/Payment/payment.route';
@@ -13,6 +12,7 @@ import { ReportRoutes } from '../modules/Report/Report.routes';
 import { BookingRoutes } from '../modules/Booking/Booking.routes';
 import { ReviewRoutes } from '../modules/Review/Review.routes';
 import { MetaRoutes } from '../modules/meta/meta.routes';
+import { notificationsRoute } from '../modules/Notification/Notification.routes';
 
 const router = express.Router();
 
@@ -32,7 +32,7 @@ const moduleRoutes = [
 
   {
     path: '/notifications',
-    route: NotificationsRouters,
+    route: notificationsRoute,
   },
   {
     path: '/specialties',

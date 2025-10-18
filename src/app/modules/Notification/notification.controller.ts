@@ -1,65 +1,70 @@
-import httpStatus from 'http-status';
 import catchAsync from '../../utils/catchAsync';
 import sendResponse from '../../utils/sendResponse';
-import { notificationServices } from './notification.service';
+import { notificationServices } from './Notification.service';
 
-// Get all notifications for the logged-in user
-const getAllNotifications = catchAsync(async (req, res) => {
-  const result = await notificationServices.getAllNotificationsByUser(req.user.id, req.query);
+const sendNotification = catchAsync(async (req: any, res: any) => {
+  const notification = await notificationServices.sendSingleNotification(req);
+
   sendResponse(res, {
-    statusCode: httpStatus.OK,
+    statusCode: 200,
+    success: true,
+    message: 'notification sent successfully',
+    data: notification,
+  });
+});
+
+const sendNotifications = catchAsync(async (req: any, res: any) => {
+  const notifications = await notificationServices.sendNotifications(req);
+
+  sendResponse(res, {
+    statusCode: 200,
+    success: true,
+    message: 'notifications sent successfully',
+    data: notifications,
+  });
+});
+
+const sendToAdmins = catchAsync(async (req: any, res: any) => {
+  const { title, body } = req.body;
+  const result = await notificationServices.sendToAdmins(req, title, body);
+  sendResponse(res, {
+    statusCode: 200,
+    success: true,
+    message: 'Admins notified',
+    data: result,
+  });
+});
+
+const getNotifications = catchAsync(async (req: any, res: any) => {
+  const notifications = await notificationServices.getNotificationsFromDB(req);
+
+  sendResponse(res, {
+    statusCode: 200,
+    success: true,
     message: 'Notifications retrieved successfully',
-    data: result,
+    data: notifications,
   });
 });
 
-// Get users who received a specific notification
-const getUsersByNotification = catchAsync(async (req, res) => {
-  const { notificationId } = req.params;
-  const result = await notificationServices.getUsersByNotification(notificationId);
+const getSingleNotificationById = catchAsync(async (req: any, res: any) => {
+  const notificationId = req.params.notificationId;
+  const notification = await notificationServices.getSingleNotificationFromDB(
+    req,
+    notificationId,
+  );
+
   sendResponse(res, {
-    statusCode: httpStatus.OK,
-    message: 'Users by notification retrieved successfully',
-    data: result,
+    success: true,
+    statusCode: 200,
+    message: 'Notification retrieved successfully',
+    data: notification,
   });
 });
 
-// Mark a specific notification as read for the logged-in user
-const markNotificationAsRead = catchAsync(async (req, res) => {
-  const { notificationId } = req.params;
-  const result = await notificationServices.markNotificationAsRead(notificationId, req.user.id);
-  sendResponse(res, {
-    statusCode: httpStatus.OK,
-    message: 'Notification marked as read successfully',
-    data: result,
-  });
-});
-
-// Get unread notification count for the logged-in user
-const getUnreadNotificationCount = catchAsync(async (req, res) => {
-  const result = await notificationServices.getUnreadNotificationCount(req.user.id);
-  sendResponse(res, {
-    statusCode: httpStatus.OK,
-    message: 'Unread notification count retrieved successfully',
-    data: result,
-  });
-});
-
-// Mark all notifications as read for the logged-in user
-const markAllNotificationsAsRead = catchAsync(async (req, res) => {
-  const result = await notificationServices.markAllNotificationsAsRead(req.user.id);
-  sendResponse(res, {
-    statusCode: httpStatus.OK,
-    message: 'All notifications marked as read successfully',
-    data: result,
-  });
-});
-
-
-export const notificationsControllers = {
-  getAllNotifications,
-  getUsersByNotification,
-  markNotificationAsRead,
-  getUnreadNotificationCount,
-  markAllNotificationsAsRead,
+export const notificationController = {
+  sendNotification,
+  sendNotifications,
+  getNotifications,
+  getSingleNotificationById,
+  sendToAdmins,
 };

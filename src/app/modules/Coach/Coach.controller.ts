@@ -16,7 +16,7 @@ const getAllCoach = catchAsync(async (req: Request, res: Response) => {
 });
 
 const getMyCoach = catchAsync(async (req: Request, res: Response) => {  
-  const result = await CoachServices.getMyCoach(req.user.id);
+  const result = await CoachServices.getMyCoachAndAthlete(req.user.email);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,

@@ -1,5 +1,5 @@
 import httpStatus from 'http-status';
-import { User, UserRoleEnum, UserStatus } from '@prisma/client';
+import { BookingStatus, User, UserRoleEnum, UserStatus } from '@prisma/client';
 import QueryBuilder from '../../builder/QueryBuilder';
 import { prisma } from '../../utils/prisma';
 
@@ -39,11 +39,28 @@ const getAllUsersFromDB = async (query: any) => {
 
   const usersWithCount = await Promise.all(
     result.data.map(async (user: any) => {
-      const bookingCount = await prisma.booking.count({
-        where: {
-          OR: [{ coachId: user.id }, { athleteId: user.id }],
-        },
+      const coach = await prisma.coach.findUnique({
+        where: { email: user.email },
+        select: { id: true },
       });
+
+      const athlete = await prisma.athlete.findUnique({
+        where: { email: user.email },
+        select: { id: true },
+      });
+
+      let bookingCount = 0;
+
+      if (user.role === 'COACH' && coach) {
+        bookingCount = await prisma.booking.count({
+          where: { coachId: coach.id, status: BookingStatus.FINISHED },
+        });
+      } else if (user.role === 'ATHLETE' && athlete) {
+        bookingCount = await prisma.booking.count({
+          where: { athleteId: athlete.id, status: BookingStatus.FINISHED },
+        });
+      }
+
       return { ...user, bookingCount };
     }),
   );

@@ -23,6 +23,9 @@ const getDashboardData = async (adminId: string) => {
   //3
   const activeBookings = await prisma.booking.count({
     where: {
+      status: {
+        in: ['CONFIRMED', 'RESCHEDULE_REQUEST', 'RESCHEDULED_ACCEPTED'],
+      },
       createdAt: {
         gte: oneWeekAgo,
       },

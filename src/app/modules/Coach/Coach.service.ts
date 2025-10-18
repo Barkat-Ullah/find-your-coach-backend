@@ -1,6 +1,8 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../utils/prisma';
 import { formatTimeWithAMPM } from '../Schedule/Schedule.constants';
+import AppError from '../../errors/AppError';
+import httpStatus from 'http-status';
 
 const getAllCoach = async (query: Record<string, any>) => {
   const {
@@ -172,9 +174,19 @@ const getAllCoach = async (query: Record<string, any>) => {
   };
 };
 
-const getMyCoach = async (userId: string) => {
-  console.log('Fetching my Coach for user:', userId);
-  return [];
+const getMyCoachAndAthlete = async (email: string) => {
+  console.log('Fetching my Coach for user:', email);
+  const athlete = await prisma.athlete.findUnique({
+    where: { email },
+  });
+
+  const coach = await prisma.coach.findUnique({
+    where: { email },
+  });
+
+  if (!athlete || !coach) {
+    throw new AppError(httpStatus.NOT_FOUND, 'User not found');
+  }
 };
 
 const getCoachByIdFromDB = async (id: string) => {
@@ -279,7 +291,7 @@ const updateIntoDb = async (id: string, data: Partial<any>) => {
 
 export const CoachServices = {
   getAllCoach,
-  getMyCoach,
+  getMyCoachAndAthlete,
   getCoachByIdFromDB,
   updateIntoDb,
 };

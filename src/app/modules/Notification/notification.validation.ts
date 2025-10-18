@@ -1,15 +1,20 @@
-import { z } from "zod";
+import { z } from 'zod';
 
-const updateEmailSettings = z.object({
-    body: z.object({
-        scheduleEntry: z.boolean().optional(),
-        reschedule: z.boolean().optional(),
-        message: z.boolean().optional(),
-        connectionRequest: z.boolean().optional(),
-        businessCardRequest: z.boolean().optional(),
-    })
-})
+const createSchema = z.object({
 
-export const notificationValidation = {
-    updateEmailSettings
-}
+    name: z.string().min(1, 'Name is required'),
+    description: z.string().optional(),
+
+});
+
+const updateSchema = z.object({
+
+    name: z.string().optional(),
+    description: z.string().optional(),
+
+});
+
+export const NotificationValidation = {
+createSchema,
+updateSchema,
+};
