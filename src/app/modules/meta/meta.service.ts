@@ -168,13 +168,19 @@ const getDashboardData = async (adminId: string) => {
   const specIds = sportGroups.map(g => g.specialtyId);
   const specialties = await prisma.specialties.findMany({
     where: { id: { in: specIds } },
-    select: { id: true, title: true },
+    select: { id: true, title: true, icon: true },
   });
-  const specMap = new Map(specialties.map(s => [s.id, s.title]));
-  const popularSports = sportGroups.map(g => ({
-    name: specMap.get(g.specialtyId) || 'Unknown',
-    count: g._count.id,
-  }));
+  const specMap = new Map(
+    specialties.map(s => [s.id, { title: s.title, icon: s.icon }]),
+  );
+  const popularSports = sportGroups.map(g => {
+    const spec = specMap.get(g.specialtyId);
+    return {
+      name: spec?.title || 'Unknown',
+      icon: spec?.icon || null,
+      count: g._count.id,
+    };
+  });
 
   //6 Popular Coaches (top 4 by booking count)
   const coachBookingGroups = await prisma.booking.groupBy({

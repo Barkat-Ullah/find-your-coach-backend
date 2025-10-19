@@ -15,6 +15,7 @@ model Coach {
     gender        GenderEnum?
     age           String?
 
+    isDenied Boolean   @default(false)
     isRecommendedPayment Boolean   @default(false)
     recommendedTime      DateTime?
 
@@ -28,6 +29,7 @@ model Coach {
     stripeCustomerId  String?
     subscriptionStart DateTime?
     subscriptionEnd   DateTime?
+
 
     subscriptionId String?             @db.ObjectId
     subscription   Subscription?       @relation(fields: [subscriptionId], references: [id])

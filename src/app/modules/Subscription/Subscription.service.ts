@@ -130,7 +130,7 @@ const assignSubscriptionToCoach = async (coachMail: string, payload: any) => {
     console.log('✅ Stripe Subscription:', stripeSubscription.id);
 
     const latestInvoice = stripeSubscription.latest_invoice as Stripe.Invoice;
-    const paymentIntent = latestInvoice?.payment_intent as Stripe.PaymentIntent ;
+    const paymentIntent = latestInvoice?.payment_intent as Stripe.PaymentIntent;
 
     // 4️⃣ Store Payment Record (initially pending)
     const paymentRecord = await prisma.payment.create({
@@ -142,7 +142,7 @@ const assignSubscriptionToCoach = async (coachMail: string, payload: any) => {
         status: PaymentStatus.PENDING,
         stripeSubscriptionId: stripeSubscription.id,
         stripeCustomerId: customerId,
-        stripePaymentId: paymentIntent?.id ,
+        stripePaymentId: paymentIntent?.id,
       },
     });
 
@@ -182,10 +182,14 @@ const assignSubscriptionToCoach = async (coachMail: string, payload: any) => {
 const getCoachSubscription = async (coachMail: string) => {
   const coach = await prisma.coach.findUnique({
     where: { email: coachMail },
-    include: { subscription: true },
+    include: { subscription: true, payment: true },
   });
 
   if (!coach || !coach.subscription) return null;
+
+  if (!PaymentStatus.SUCCESS) {
+    throw new AppError(httpStatus.NOT_FOUND, 'PAyment not success');
+  }
 
   const now = new Date();
   const remainingDays = coach.subscriptionEnd

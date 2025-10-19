@@ -6,6 +6,7 @@ import { prisma } from '../../utils/prisma';
 import { Request } from 'express';
 import AppError from '../../errors/AppError';
 import { uploadToDigitalOceanAWS } from '../../utils/uploadToDigitalOceanAWS';
+import { calculatePagination, IOptions } from '../../utils/calculatePagination';
 
 interface UserWithOptionalPassword extends Omit<User, 'password'> {
   password?: string;
@@ -13,16 +14,18 @@ interface UserWithOptionalPassword extends Omit<User, 'password'> {
 
 const getAllUsersFromDB = async (query: any) => {
   const usersQuery = new QueryBuilder<typeof prisma.user>(prisma.user, query);
-
   usersQuery.where({
     role: {
       in: ['COACH', 'ATHLETE'],
     },
   });
-
   const result = await usersQuery
     .search(['fullName', 'email', 'address'])
     .filter()
+    .where({
+      isApproved: true,
+      isDenied: false,
+    })
     .sort()
     .fields()
     .exclude()
@@ -34,6 +37,7 @@ const getAllUsersFromDB = async (query: any) => {
       role: true,
       status: true,
       isApproved: true,
+      isDenied: true,
     })
     .execute();
 
@@ -71,10 +75,14 @@ const getAllUsersFromDB = async (query: any) => {
   };
 };
 
-const getAllUnApproveCoach = async () => {
-  const result = await prisma.user.findMany({
+const getAllUnApproveCoach = async (options: IOptions) => {
+  const { skip, limit, page } = calculatePagination(options);
+
+  const data = await prisma.user.findMany({
     where: {
+      role: 'COACH',
       isApproved: false,
+      isDenied: false,
     },
     select: {
       id: true,
@@ -83,9 +91,30 @@ const getAllUnApproveCoach = async () => {
       role: true,
       status: true,
       isApproved: true,
+      isDenied: true,
+    },
+    skip,
+    take: limit,
+    orderBy: { createdAt: 'desc' }, 
+  });
+
+  const total = await prisma.user.count({
+    where: {
+      role: 'COACH',
+      isApproved: false,
+      isDenied: false,
     },
   });
-  return result;
+
+  return {
+    data,
+    meta: {
+      total,
+      page,
+      limit,
+      totalPage: Math.ceil(total / limit),
+    },
+  };
 };
 
 const getMyProfileFromDB = async (id: string) => {
@@ -361,6 +390,39 @@ const updateUserApproval = async (userId: string, adminId: string) => {
       role: true,
       status: true,
       isApproved: true,
+      isDenied: true,
+    },
+  });
+
+  return result;
+};
+
+const updateUserDenied = async (userId: string, adminId: string) => {
+  const admin = await prisma.user.findUnique({ where: { id: adminId } });
+  if (!admin || admin.role !== UserRoleEnum.ADMIN) {
+    throw new AppError(httpStatus.FORBIDDEN, 'Only admin can approve');
+  }
+
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) throw new AppError(httpStatus.NOT_FOUND, 'User not found');
+
+  if (user.role !== UserRoleEnum.COACH) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Only coaches can be denied');
+  }
+
+  const newApprovalStatus = !user.isDenied;
+
+  const result = await prisma.user.update({
+    where: { id: userId },
+    data: { isDenied: newApprovalStatus },
+    select: {
+      id: true,
+      fullName: true,
+      email: true,
+      role: true,
+      status: true,
+      isApproved: true,
+      isDenied: true,
     },
   });
 
@@ -378,6 +440,7 @@ const softDeleteUserIntoDB = async (id: string) => {
   });
   return result;
 };
+
 const hardDeleteUserIntoDB = async (id: string, adminId: string) => {
   // const adminUser = await prisma.user.findUnique({
   //   where: {
@@ -451,9 +514,15 @@ const updateMyProfile = async (
 
   if (role === UserRoleEnum.ADMIN) {
     return await prisma.admin.update({
-      where: { email: user.email }, // ✅ use email from user table
+      where: { email: user.email },
       data: updateData,
-      select: { id: true, fullName: true, email: true, profile: true },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        profile: true,
+        phoneNumber: true,
+      },
     });
   }
 
@@ -558,4 +627,5 @@ export const UserServices = {
   hardDeleteUserIntoDB,
   updateUserIntoDb,
   updateMyProfile,
+  updateUserDenied,
 };

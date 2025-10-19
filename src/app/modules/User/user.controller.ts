@@ -3,6 +3,7 @@ import catchAsync from '../../utils/catchAsync';
 import sendResponse from '../../utils/sendResponse';
 import { UserServices } from './user.service';
 import { Request } from 'express';
+import { IOptions } from '../../utils/calculatePagination';
 
 const getAllUsers = catchAsync(async (req, res) => {
   const result = await UserServices.getAllUsersFromDB(req.query);
@@ -14,12 +15,18 @@ const getAllUsers = catchAsync(async (req, res) => {
   });
 });
 const getAllUnApproveCoach = catchAsync(async (req, res) => {
-  const result = await UserServices.getAllUnApproveCoach();
+  const options: IOptions = {
+    page: Number(req.query.page),
+    limit: Number(req.query.limit),
+  };
+
+  const result = await UserServices.getAllUnApproveCoach(options);
 
   sendResponse(res, {
     statusCode: httpStatus.OK,
-    message: 'All un approved users retrieved successfully',
-    data: result,
+    message: 'All unapproved coaches retrieved successfully',
+    data: result.data,
+    meta: result.meta,
   });
 });
 
@@ -76,6 +83,17 @@ const updateUserApproval = catchAsync(async (req, res) => {
   sendResponse(res, {
     statusCode: httpStatus.OK,
     message: 'User approved successfully',
+    data: result,
+  });
+});
+const updateUserDenied = catchAsync(async (req, res) => {
+  const adminId = req.user.id;
+  const { id } = req.params;
+  const result = await UserServices.updateUserDenied(id, adminId);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    message: 'User denied successfully',
     data: result,
   });
 });
@@ -157,4 +175,5 @@ export const UserControllers = {
   updateUser,
   updateMyProfile,
   getAllUnApproveCoach,
+  updateUserDenied,
 };

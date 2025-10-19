@@ -288,6 +288,9 @@ const verifyOtpCommon = async (payload: { email: string; otp: string }) => {
       isEmailVerified: true,
       fullName: true,
       role: true,
+      isApproved: true,
+      isDeleted: true,
+      isDenied: true,
     },
   });
 
@@ -331,6 +334,9 @@ const verifyOtpCommon = async (payload: { email: string; otp: string }) => {
       name: user.fullName,
       email: user.email,
       role: user.role,
+      isDeleted: user.isDeleted,
+      isApproved: user.isApproved,
+      isDenied: user.isDenied,
     };
   }
   // Step 5: Handle forgot password case

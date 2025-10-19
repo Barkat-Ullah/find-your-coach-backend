@@ -48,6 +48,11 @@ router.put(
   auth(UserRoleEnum.ADMIN),
   UserControllers.updateUserApproval,
 );
+router.put(
+  '/dinned-user/:id',
+  auth(UserRoleEnum.ADMIN),
+  UserControllers.updateUserDenied,
+);
 
 router.put(
   '/update-user/:id',

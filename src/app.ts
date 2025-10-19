@@ -22,7 +22,6 @@ app.post(
 );
 
 setupMiddlewares(app);
-
 app.use('/api/v1', apiLimiter, router);
 
 // Stripe webhook (if needed, before error handler)

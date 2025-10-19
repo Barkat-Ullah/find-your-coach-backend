@@ -260,7 +260,7 @@ const getAllBooking = async (query: Record<string, any>) => {
 };
 
 const getMyBooking = async (email: string) => {
-  // First, determine if the user is an athlete or coach
+  // First, check if the user is an athlete or coach
   const athlete = await prisma.athlete.findUnique({
     where: { email },
   });
@@ -701,7 +701,7 @@ const requestReschedule = async (
     );
   }
 
-  // Check করা original booking already reschedule request cancelled/finished
+  // Check original booking already reschedule request cancelled/finished
   if (originalBooking.status === BookingStatus.RESCHEDULE_REQUEST) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
@@ -774,7 +774,6 @@ const requestReschedule = async (
     );
   }
 
-  // Check করা past date কিনা
   // if (newBookingDate < new Date()) {
   //   throw new AppError(
   //     httpStatus.BAD_REQUEST,

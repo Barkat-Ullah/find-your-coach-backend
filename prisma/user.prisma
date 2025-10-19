@@ -7,13 +7,13 @@ model User {
 
   status UserStatus @default(ACTIVE)
 
-  otp       String?
-  otpExpiry DateTime?
-  fcmToken  String?
-
-  isEmailVerified Boolean @default(false)
-  isApproved      Boolean @default(false)
-  isDeleted       Boolean @default(false)
+  otp             String?
+  otpExpiry       DateTime?
+  fcmToken        String?
+  isDenied        Boolean   @default(false)
+  isEmailVerified Boolean   @default(false)
+  isApproved      Boolean   @default(false)
+  isDeleted       Boolean   @default(false)
 
   stripeCustomerId String?
 
@@ -28,10 +28,10 @@ model User {
   roomSender   Room[] @relation("RoomSender")
   roomReceiver Room[] @relation("RoomReceiver")
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  sentChats     Chat[] @relation("ChatSender")
-  receivedChats Chat[] @relation("ChatReceiver")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  sentChats     Chat[]   @relation("ChatSender")
+  receivedChats Chat[]   @relation("ChatReceiver")
 
   @@map("users")
 }

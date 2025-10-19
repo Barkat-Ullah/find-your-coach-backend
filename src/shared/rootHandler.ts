@@ -138,11 +138,6 @@ export const rootHandler = (
         <h3><span>🖥️</span> Server Details</h3>
         <ul>
           <li><b>Hostname:</b> ${data.serverDetails.hostname}</li>
-          <li><b>Platform:</b> ${data.serverDetails.platform}</li>
-          <li><b>Uptime:</b> ${data.serverDetails.uptime}</li>
-          <li><b>Node.js Version:</b> ${data.serverDetails.nodeVersion}</li>
-          <li><b>Memory Usage:</b> ${data.serverDetails.memoryUsage}</li>
-          <li><b>CPU Load:</b> ${data.serverDetails.cpuLoad}</li>
           <li><b>Server Date-Time:</b> ${data.serverDetails.currentDateTime}</li>
         </ul>
       </div>

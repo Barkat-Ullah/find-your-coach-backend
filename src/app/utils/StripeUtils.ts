@@ -39,7 +39,7 @@ const StripeHook = async (
     event = stripe.webhooks.constructEvent(
       rawBody,
       signature as string,
-      config.stripe.stripe_webhook as string,
+      config.stripe.stripe_webhook!,
     );
   } catch (err) {
     throw new AppError(
@@ -71,20 +71,20 @@ const StripeHook = async (
           },
         });
         //*try notification
-        const payment = await prisma.payment.findUnique({
-          where: { id: existingPayment.id },
-          include: {
-            coach: { select: { fullName: true } },
-            subscription: true,
-          },
-        });
-        if (payment?.coach && payment.subscription) {
-          await notificationServices.sendToAdmins(
-            { user: { id: 'system_id' } },
-            'Payment Succeeded',
-            `Coach ${payment.coach.fullName} paid $${payment.amount} for ${payment.subscription.title}.`,
-          );
-        }
+        // const payment = await prisma.payment.findUnique({
+        //   where: { id: existingPayment.id },
+        //   include: {
+        //     coach: { select: { fullName: true } },
+        //     subscription: true,
+        //   },
+        // });
+        // if (payment?.coach && payment.subscription) {
+        //   await notificationServices.sendToAdmins(
+        //     { user: { id: 'system_id' } },
+        //     'Payment Succeeded',
+        //     `Coach ${payment.coach.fullName} paid $${payment.amount} for ${payment.subscription.title}.`,
+        //   );
+        // }
       } else {
         console.log(
           `No payment record found for PaymentIntent ${paymentIntent.id}`,
@@ -145,17 +145,17 @@ const StripeHook = async (
             },
           });
           //*try notification
-          const coach = await prisma.coach.findUnique({
-            where: { id: existingPayment.coachId },
-            select: { id: true, fullName: true },
-          });
+          // const coach = await prisma.coach.findUnique({
+          //   where: { id: existingPayment.coachId },
+          //   select: { id: true, fullName: true },
+          // });
 
-          await notificationServices.sendToAdmins(
-            { user: { id: coach?.id, fullName: coach?.fullName } },
-            'New Coach Subscription Confirmed',
-            `Coach ${coach?.fullName} paid $${invoice.amount_paid / 100} for ${subscription.title} (${subscription.duration}).`,
-          );
-          console.log('✅ Admins notified for subscription success');
+          // await notificationServices.sendToAdmins(
+          //   { user: { id: coach?.id, fullName: coach?.fullName } },
+          //   'New Coach Subscription Confirmed',
+          //   `Coach ${coach?.fullName} paid $${invoice.amount_paid / 100} for ${subscription.title} (${subscription.duration}).`,
+          // );
+          // console.log('✅ Admins notified for subscription success');
         }
 
         console.log(`✅ Payment SUCCESS: ${existingPayment.coachId}`);
