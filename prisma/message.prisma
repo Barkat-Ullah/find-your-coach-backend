@@ -23,11 +23,9 @@ model Chat {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  // Relations 
   room     Room @relation(fields: [roomId], references: [id])
   sender   User @relation("ChatSender", fields: [senderId], references: [id])
   receiver User @relation("ChatReceiver", fields: [receiverId], references: [id])
 
   @@map("chats")
 }
-

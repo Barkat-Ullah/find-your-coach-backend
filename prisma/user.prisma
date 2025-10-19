@@ -25,8 +25,13 @@ model User {
   coach   Coach?
   athlete Athlete?
 
+  roomSender   Room[] @relation("RoomSender")
+  roomReceiver Room[] @relation("RoomReceiver")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  sentChats     Chat[] @relation("ChatSender")
+  receivedChats Chat[] @relation("ChatReceiver")
 
   @@map("users")
 }

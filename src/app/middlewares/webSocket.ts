@@ -42,7 +42,6 @@ export async function setupWebSocket(server: Server) {
   console.log('WebSocket server is running');
 
   wss.on('connection', (ws: ExtendedWebSocket) => {
-    console.log('New user connected');
 
     ws.on('message', async (data: string) => {
       try {
@@ -374,7 +373,7 @@ export async function setupWebSocket(server: Server) {
             const validRooms = rooms.filter(room => {
               const otherUser =
                 room.senderId === ws.userId ? room.receiver : room.sender;
-              return isValidChatPair(ws.role, otherUser.role);
+              return isValidChatPair(ws.role as UserRoleEnum, otherUser.role);
             });
 
             const userWithLastMessages = validRooms.map(room => {
