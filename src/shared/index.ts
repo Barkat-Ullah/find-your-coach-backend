@@ -1,4 +1,3 @@
-
 import express, { Application, NextFunction, Request, Response } from 'express';
 import httpStatus from 'http-status';
 import rateLimit from 'express-rate-limit';
@@ -9,14 +8,12 @@ import AppError from '../app/errors/AppError';
 import { uploadToDigitalOceanAWS } from '../app/utils/uploadToDigitalOceanAWS';
 import { prisma } from '../app/utils/prisma';
 
-
-
-
 export const setupMiddlewares = (app: Application): void => {
   // CORS
   app.use(
     cors({
       origin: ['http://localhost:3001', 'http://localhost:3000'],
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
       allowedHeaders: [
         'Content-Type',
         'Authorization',
@@ -64,7 +61,7 @@ console.log('✅ Middlewares setup complete');
 export const notFound = (req: Request, res: Response, next: NextFunction) => {
   res.status(httpStatus.NOT_FOUND).json({
     success: false,
-    message: 'API NOT FOUND! please check on router',
+    message: 'API NOT FOUND! please check on router or path',
     error: {
       path: req.originalUrl,
       message: 'Your requested path is not found!',

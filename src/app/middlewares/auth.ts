@@ -64,7 +64,7 @@ const auth = <T extends readonly (UserRoleEnum | 'ANY')[]>(
         throw new AppError(httpStatus.UNAUTHORIZED, 'You are not verified!');
       }
       if (user.status === UserStatus.RESTRICTED) {
-        throw new AppError(httpStatus.UNAUTHORIZED, 'You are suspended!');
+        throw new AppError(httpStatus.UNAUTHORIZED, 'You are restricted!');
       }
 
       req.user = verifyUserToken;

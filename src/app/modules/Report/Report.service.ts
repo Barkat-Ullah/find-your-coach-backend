@@ -127,6 +127,11 @@ const getAllReport = async (query: Record<string, any>) => {
             fullName: true,
             email: true,
             profile: true,
+            user: {
+              select: {
+                role: true,
+              },
+            },
           },
         },
         reportedToCoach: {
@@ -134,6 +139,11 @@ const getAllReport = async (query: Record<string, any>) => {
             fullName: true,
             email: true,
             profile: true,
+            user: {
+              select: {
+                role: true,
+              },
+            },
           },
         },
         admin: {
@@ -142,6 +152,7 @@ const getAllReport = async (query: Record<string, any>) => {
               select: {
                 fullName: true,
                 email: true,
+                role:true
               },
             },
           },
@@ -208,6 +219,11 @@ const getReportByIdFromDB = async (id: string) => {
           fullName: true,
           email: true,
           profile: true,
+          user: {
+            select: {
+              role: true,
+            },
+          },
         },
       },
       reportedToCoach: {
@@ -215,13 +231,18 @@ const getReportByIdFromDB = async (id: string) => {
           fullName: true,
           email: true,
           profile: true,
+          user: {
+            select: {
+              role: true,
+            },
+          },
         },
       },
       admin: {
         select: {
           fullName: true,
           email: true,
-          profile:true
+          profile: true,
         },
       },
     },

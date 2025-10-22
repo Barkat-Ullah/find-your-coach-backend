@@ -1,6 +1,5 @@
-// ============================================
 // HELPER FUNCTION: Format Time with AM/PM
-// ============================================
+
 export const formatTimeWithAMPM = (date: Date): string => {
   let hours = date.getHours();
   const minutes = date.getMinutes();

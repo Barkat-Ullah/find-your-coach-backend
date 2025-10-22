@@ -1,8 +1,14 @@
-import { Prisma } from '@prisma/client';
+import {
+  BookingStatus,
+  GenderEnum,
+  Prisma,
+  UserRoleEnum,
+} from '@prisma/client';
 import { prisma } from '../../utils/prisma';
 import { formatTimeWithAMPM } from '../Schedule/Schedule.constants';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
+import { Request } from 'express';
 
 const getAllCoach = async (query: Record<string, any>) => {
   const {
@@ -46,7 +52,7 @@ const getAllCoach = async (query: Record<string, any>) => {
   // Experience filter
   if (experience) {
     whereConditions.push({
-      experience: experience,
+      experience: parseInt(experience),
     });
   }
 
@@ -174,22 +180,10 @@ const getAllCoach = async (query: Record<string, any>) => {
   };
 };
 
-const getMyCoachAndAthlete = async (email: string) => {
-  console.log('Fetching my Coach for user:', email);
-  const athlete = await prisma.athlete.findUnique({
-    where: { email },
-  });
-
-  const coach = await prisma.coach.findUnique({
-    where: { email },
-  });
-
-  if (!athlete || !coach) {
-    throw new AppError(httpStatus.NOT_FOUND, 'User not found');
-  }
-};
-
 const getCoachByIdFromDB = async (id: string) => {
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+
   const coach = await prisma.coach.findUnique({
     where: { id },
     select: {
@@ -228,11 +222,18 @@ const getCoachByIdFromDB = async (id: string) => {
       availabilities: {
         select: {
           id: true,
-          // dayOfWeek: true,
           slotDate: true,
           startTime: true,
           endTime: true,
           isActive: true,
+          // timeSlots:true
+        },
+        where: {
+          isActive: true,
+          slotDate: { gte: today },
+        },
+        orderBy: {
+          slotDate: 'asc',
         },
       },
       review: {
@@ -260,12 +261,15 @@ const getCoachByIdFromDB = async (id: string) => {
     return null;
   }
 
-  const formattedAvailabilities = coach.availabilities.map(availability => ({
+  const filteredAvailabilities = coach.availabilities.slice(0, 5);
+
+  const formattedAvailabilities = filteredAvailabilities.map(availability => ({
     id: availability.id,
     slotDate: availability.slotDate,
     startTime: formatTimeWithAMPM(availability.startTime),
     endTime: formatTimeWithAMPM(availability.endTime),
     isActive: availability.isActive,
+    // timeSlots:availability.timeSlots
   }));
 
   // Calculate average rating
@@ -284,6 +288,192 @@ const getCoachByIdFromDB = async (id: string) => {
   };
 };
 
+const getMyCoachAndAthlete = async (email: string) => {
+  // Check if user is athlete
+  const athlete = await prisma.athlete.findUnique({
+    where: { email },
+    select: {
+      id: true,
+      fullName: true,
+      profile: true,
+      email: true,
+      phoneNumber: true,
+    },
+  });
+
+  if (athlete) {
+    // Athlete: Fetch their active/recent coaches from bookings
+    const bookings = await prisma.booking.findMany({
+      where: {
+        athleteId: athlete.id,
+        status: {
+          in: [
+            BookingStatus.CONFIRMED,
+            BookingStatus.RESCHEDULED_ACCEPTED,
+            BookingStatus.FINISHED,
+          ],
+        },
+      },
+      select: {
+        id: true,
+        bookingDate: true,
+        status: true,
+        coach: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            profile: true,
+            phoneNumber: true,
+            location: true,
+            expertise: true,
+            price: true,
+            gender: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 3,
+    });
+
+    // Extract unique coaches (if multiple bookings with same coach)
+    const coaches = bookings
+      .map(booking => booking.coach)
+      .filter(
+        (coach, index, self) =>
+          self.findIndex(c => c.id === coach.id) === index,
+      );
+
+    return {
+      data: coaches,
+      message: `Found ${coaches.length} coach(es) for athlete ${athlete.fullName}`,
+    };
+  }
+
+  // Check if user is coach
+  const coach = await prisma.coach.findUnique({
+    where: { email },
+    select: {
+      id: true,
+      fullName: true,
+      profile: true,
+      email: true,
+      phoneNumber: true,
+      location: true,
+      expertise: true,
+      price: true,
+      gender: true,
+    },
+  });
+
+  if (!coach) {
+    throw new AppError(
+      httpStatus.NOT_FOUND,
+      'User not found as athlete or coach',
+    );
+  }
+
+  // Coach: Fetch their active/recent athletes from bookings
+  const bookings = await prisma.booking.findMany({
+    where: {
+      coachId: coach.id,
+      status: {
+        in: [
+          BookingStatus.CONFIRMED,
+          BookingStatus.RESCHEDULED_ACCEPTED,
+          BookingStatus.FINISHED,
+        ],
+      },
+    },
+    select: {
+      id: true,
+      bookingDate: true,
+      status: true,
+      athlete: {
+        select: {
+          id: true,
+          fullName: true,
+          profile: true,
+          email: true,
+          phoneNumber: true,
+        },
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 5,
+  });
+
+  // Extract unique athletes
+  const athletes = bookings
+    .map(booking => booking.athlete)
+    .filter(
+      (athlete, index, self) =>
+        self.findIndex(a => a.id === athlete.id) === index,
+    );
+
+  return {
+    data: athletes,
+    message: `Found ${athletes.length} athlete(s) for coach ${coach.fullName}`,
+  };
+};
+
+const getSpecifiCoaches = async (req: Request) => {
+  const { slotDate } = req.query;
+  const { coachId } = req.params;
+
+  const coach = await prisma.coach.findUnique({
+    where: {
+      id: coachId,
+    },
+  });
+  if (!coach) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Coach not found');
+  }
+  
+  const dateObj = new Date(slotDate as string);
+  const availability = await prisma.coachAvailability.findUnique({
+    where: {
+      coachId_slotDate: {
+        coachId: coach.id,
+        slotDate: dateObj,
+      },
+    },
+    include: {
+      coach: { select: { id: true, fullName: true } },
+      timeSlots: {
+        orderBy: {
+          startTime: 'asc',
+        },
+      },
+    },
+  });
+
+  if (!availability) {
+    return {
+      message: 'No slots found for this date',
+      slots: [],
+    };
+  }
+
+  return {
+    date: slotDate,
+    isActive: availability.isActive,
+    availabilityTime: {
+      coachId: availability.coach.id,
+      coachName: availability.coach.fullName,
+      startTime: formatTimeWithAMPM(availability.startTime),
+      endTime: formatTimeWithAMPM(availability.endTime),
+    },
+    slots: availability.timeSlots.map(slot => ({
+      id: slot.id,
+      startTime: formatTimeWithAMPM(slot.startTime), // "10:00 AM"
+      endTime: formatTimeWithAMPM(slot.endTime), // "11:00 AM"
+      status: slot.status,
+      isBooked: slot.isBooked,
+    })),
+  };
+};
+
 const updateIntoDb = async (id: string, data: Partial<any>) => {
   console.dir({ id, data });
   return null;
@@ -292,6 +482,7 @@ const updateIntoDb = async (id: string, data: Partial<any>) => {
 export const CoachServices = {
   getAllCoach,
   getMyCoachAndAthlete,
+  getSpecifiCoaches,
   getCoachByIdFromDB,
   updateIntoDb,
 };

@@ -23,6 +23,15 @@ const getMyBooking = catchAsync(async (req: Request, res: Response) => {
     data: result,
   });
 });
+const getMyFinishedBooking = catchAsync(async (req: Request, res: Response) => {
+  const result = await BookingServices.getMyFinishedBooking(req.user.email);
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Successfully retrieved my finished Booking',
+    data: result,
+  });
+});
 
 const getAllBooking = catchAsync(async (req: Request, res: Response) => {
   const result = await BookingServices.getAllBooking(req.query);
@@ -112,6 +121,7 @@ export const BookingController = {
   createIntoDb,
   getAllBooking,
   getMyBooking,
+  getMyFinishedBooking,
   getPendingRescheduleRequests,
   respondToReschedule,
   requestReschedule,

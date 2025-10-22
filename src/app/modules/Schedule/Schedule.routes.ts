@@ -7,7 +7,7 @@ const router = express.Router();
 
 router.get(
   '/slot',
-  auth(UserRoleEnum.COACH),
+  auth(UserRoleEnum.COACH,UserRoleEnum.ATHLETE),
   ScheduleController.getSlotsByDate,
 );
 router.post('/', auth(UserRoleEnum.COACH), ScheduleController.createIntoDb);

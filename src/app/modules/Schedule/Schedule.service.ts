@@ -41,15 +41,15 @@ const createIntoDb = async (req: Request) => {
     },
     update: {
       startTime: startDateTime,
-      endTime: endDateTime, 
+      endTime: endDateTime,
       isActive: true,
       updatedAt: new Date(),
     },
     create: {
       coachId: coach.id,
       slotDate: slotDateObj,
-      startTime: startDateTime, 
-      endTime: endDateTime, 
+      startTime: startDateTime,
+      endTime: endDateTime,
       isActive: true,
     },
   });
@@ -122,7 +122,7 @@ const getSlotsByDate = async (req: Request) => {
   if (!coach) {
     throw new Error('Coach not found');
   }
-
+  
   const dateObj = new Date(slotDate as string);
 
   // Get availability for this date
@@ -134,6 +134,7 @@ const getSlotsByDate = async (req: Request) => {
       },
     },
     include: {
+      coach: { select: { id: true, fullName: true } },
       timeSlots: {
         orderBy: {
           startTime: 'asc',
@@ -153,6 +154,8 @@ const getSlotsByDate = async (req: Request) => {
     date: slotDate,
     isActive: availability.isActive,
     availabilityTime: {
+      coachId: availability.coach.id,
+      coachName: availability.coach.fullName,
       startTime: formatTimeWithAMPM(availability.startTime),
       endTime: formatTimeWithAMPM(availability.endTime),
     },

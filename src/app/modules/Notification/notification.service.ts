@@ -185,13 +185,13 @@ const sendNotifications = async (req: any) => {
 
 const sendToAdmins = async (req: any, title: string, body: string) => {
   const admins = await prisma.user.findMany({
-    where: { role: 'ADMIN' }, //fcmToken: { not: null }
+    where: { role: 'ADMIN', fcmToken: { not: null } },
     select: { id: true, fcmToken: true },
   });
-  // if (!admins.length) throw new AppError(404, 'No admins with FCM');
+  if (!admins.length) throw new AppError(404, 'No admins with FCM');
 
-  // const fcmTokens = admins.map(a => a.fcmToken);
-  const message = { notification: { title, body } }; //tokens: fcmTokens
+  const fcmTokens = admins.map(a => a.fcmToken);
+  const message = { notification: { title, body }, tokens: fcmTokens }; 
   const response = await admin.messaging().sendEachForMulticast(message as any);
 
   const successIndices = response.responses

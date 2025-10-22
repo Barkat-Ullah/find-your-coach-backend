@@ -1,41 +1,39 @@
-// CoachAvailability: Weekly recurring availability pattern for coach (e.g., Mon-Fri 10AM-4PM)
 model CoachAvailability {
-    id        String   @id @default(auto()) @map("_id") @db.ObjectId
-    coachId   String   @db.ObjectId
-    // dayOfWeek DayOfWeek // Specific day of week
+    id      String @id @default(auto()) @map("_id") @db.ObjectId
+    coachId String @db.ObjectId
+
     slotDate  DateTime
-    startTime DateTime // Start time (time only, e.g., 10:00:00)
-    endTime   DateTime // End time (e.g., 16:00:00)
-    isActive  Boolean  @default(false) // Day active or not (e.g., Sunday false)
+    startTime DateTime
+    endTime   DateTime
+    isActive  Boolean  @default(false)
 
     coach     Coach      @relation(fields: [coachId], references: [id])
-    timeSlots TimeSlot[] // Slots generated from this availability
+    timeSlots TimeSlot[]
 
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt
 
-    // @@unique([coachId, dayOfWeek]) // One pattern per day per coach
     @@unique([coachId, slotDate])
     @@map("coach_availabilities")
 }
 
-// TimeSlot: Hourly slots within availability (recurring template, e.g., 10-11 AM)
 model TimeSlot {
-    id             String   @id @default(auto()) @map("_id") @db.ObjectId
-    availabilityId String   @db.ObjectId
-    startTime      DateTime // Slot start time (relative, e.g., 10:00:00)
-    endTime        DateTime // Slot end time (e.g., 11:00:00)
-    isBooked       Boolean  @default(false) // Globally booked flag (for template; actual per date in Booking)
+    id             String     @id @default(auto()) @map("_id") @db.ObjectId
+    availabilityId String     @db.ObjectId
+    startTime      DateTime
+    endTime        DateTime
+    isBooked       Boolean    @default(false)
     status         SlotStatus @default(ACTIVE)
 
     availability CoachAvailability @relation(fields: [availabilityId], references: [id])
-    bookings     Booking[] // Actual bookings using this slot type
+    bookings     Booking[]
 
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt
 
     @@map("time_slots")
 }
+
 // enum DayOfWeek {
 //     MONDAY 
 //     TUESDAY
@@ -54,17 +52,17 @@ enum SlotStatus {
 // Booking: Specific instance of a booking (date + slot, with status for workflow)
 model Booking {
     id               String        @id @default(auto()) @map("_id") @db.ObjectId
-    athleteId        String        @db.ObjectId // Athlete booking
-    coachId          String        @db.ObjectId // Coach involved
-    timeSlotId       String?        @db.ObjectId // References slot template
-    bookingDate      DateTime // Full datetime (specific date + slot time)
+    athleteId        String        @db.ObjectId
+    coachId          String        @db.ObjectId
+    timeSlotId       String?       @db.ObjectId
+    bookingDate      DateTime
     status           BookingStatus @default(CONFIRMED) // Workflow status
     rescheduleFromId String?       @db.ObjectId // Link to old booking for reschedule
-    notes            String? // Optional notes (e.g., session type)
+    notes            String?
 
     athlete         Athlete   @relation(fields: [athleteId], references: [id])
     coach           Coach     @relation(fields: [coachId], references: [id])
-    timeSlot        TimeSlot?  @relation(fields: [timeSlotId], references: [id])
+    timeSlot        TimeSlot? @relation(fields: [timeSlotId], references: [id])
     // Self-relation for chain
     rescheduledFrom Booking?  @relation("RescheduleChain", fields: [rescheduleFromId], references: [id], onDelete: NoAction, onUpdate: NoAction)
     booking         Booking[] @relation("RescheduleChain")
@@ -76,7 +74,7 @@ model Booking {
 }
 
 enum BookingStatus {
-    CONFIRMED 
+    CONFIRMED
     RESCHEDULE_REQUEST // Reschedule request from athlete (linked to old booking)
     RESCHEDULED_ACCEPTED // Reschedule accepted by coach
     RESCHEDULED_CANCELED // Reschedule canceled by coach

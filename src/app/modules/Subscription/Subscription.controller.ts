@@ -49,6 +49,7 @@ const getMySubscription = catchAsync(async (req: Request, res: Response) => {
     data: result,
   });
 });
+
 const getSubscriptionById = catchAsync(async (req: Request, res: Response) => {
   const { id } = req.params;
   const result = await SubscriptionServices.getSubscriptionByIdFromDB(id);

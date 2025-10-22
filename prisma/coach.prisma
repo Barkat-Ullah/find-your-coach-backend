@@ -4,7 +4,7 @@ model Coach {
     email         String      @unique
     profile       String?
     phoneNumber   String?
-    experience    String?
+    experience    Int?
     location      String?
     expertise     String[]
     certification String?
@@ -15,9 +15,9 @@ model Coach {
     gender        GenderEnum?
     age           String?
 
-    isDenied Boolean   @default(false)
+    // isDenied Boolean   @default(false)
     isRecommendedPayment Boolean   @default(false)
-    recommendedTime      DateTime?
+    recommendedTime      DateTime? //int?
 
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt

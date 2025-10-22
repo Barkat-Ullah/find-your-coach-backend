@@ -188,7 +188,7 @@ const getCoachSubscription = async (coachMail: string) => {
   if (!coach || !coach.subscription) return null;
 
   if (!PaymentStatus.SUCCESS) {
-    throw new AppError(httpStatus.NOT_FOUND, 'PAyment not success');
+    throw new AppError(httpStatus.NOT_FOUND, 'Payment not success');
   }
 
   const now = new Date();
@@ -202,6 +202,20 @@ const getCoachSubscription = async (coachMail: string) => {
       )
     : 0;
 
+  if (remainingDays === 0) {
+    await prisma.coach.update({
+      where: { email: coachMail },
+      data: {
+        subscriptionId: null,
+        subscriptionStart: null,
+        subscriptionEnd: null,
+      },
+    });
+
+    return {
+      message: 'Subscription expired. Data reset successfully.',
+    };
+  }
   return {
     id: coach.subscription.id,
     title: coach.subscription.title,

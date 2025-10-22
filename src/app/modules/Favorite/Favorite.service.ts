@@ -24,9 +24,8 @@ const toggleFavorite = async (
     select: { id: true, role: true },
   });
   if (!user)
-    throw new AppError(httpStatus.NOT_FOUND, 'User (athlete) not found');
-  // Optional: ensure role is ATHLETE
-  // if (user.role !== 'ATHLETE') throw new AppError(httpStatus.FORBIDDEN, 'Only athletes can favorite coaches');
+    throw new AppError(httpStatus.NOT_FOUND, 'User not found');
+
 
   // ensure coach exists (by email)
   const coach = await prisma.coach.findUnique({ where: { email: coachEmail } });

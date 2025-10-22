@@ -10,7 +10,12 @@ router.get(
   auth(UserRoleEnum.ADMIN, UserRoleEnum.COACH, UserRoleEnum.ATHLETE),
   CoachController.getAllCoach,
 );
-router.get('/my', auth(UserRoleEnum.ATHLETE), CoachController.getMyCoach);
+router.get(
+  '/my',
+  auth(UserRoleEnum.ATHLETE, UserRoleEnum.COACH),
+  CoachController.getMyCoach,
+);
+router.get('/coach-slot/:coachId', CoachController.getSpecifiCoacheSlotByDate);
 router.get(
   '/:id',
   auth(UserRoleEnum.ADMIN, UserRoleEnum.COACH, UserRoleEnum.ATHLETE),

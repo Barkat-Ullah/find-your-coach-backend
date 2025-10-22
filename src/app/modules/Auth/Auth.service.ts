@@ -24,7 +24,7 @@ import { toStringArray } from './Auth.constants';
 // ======================== LOGIN WITH OTP ========================
 const loginWithOtpFromDB = async (
   res: Response,
-  payload: { email: string; password: string },
+  payload: { email: string; password: string; fcmToken?: string },
 ) => {
   const userData = await insecurePrisma.user.findUniqueOrThrow({
     where: { email: payload.email },
@@ -47,6 +47,7 @@ const loginWithOtpFromDB = async (
       data: {
         otp,
         otpExpiry: otpExpiryTime(),
+        fcmToken: payload?.fcmToken,
       },
     });
 

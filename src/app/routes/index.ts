@@ -12,7 +12,7 @@ import { ReportRoutes } from '../modules/Report/Report.routes';
 import { BookingRoutes } from '../modules/Booking/Booking.routes';
 import { ReviewRoutes } from '../modules/Review/Review.routes';
 import { MetaRoutes } from '../modules/meta/meta.routes';
-import { notificationsRoute } from '../modules/Notification/Notification.routes';
+// import { notificationsRoute } from '../modules/Notification/Notification.routes';
 
 const router = express.Router();
 
@@ -30,10 +30,10 @@ const moduleRoutes = [
     route: PaymentRoutes,
   },
 
-  {
-    path: '/notifications',
-    route: notificationsRoute,
-  },
+  // {
+  //   path: '/notifications',
+  //   route: notificationsRoute,
+  // },
   {
     path: '/specialties',
     route: SpecialtyRoutes,

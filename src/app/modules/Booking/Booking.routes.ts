@@ -12,6 +12,11 @@ router.get(
   BookingController.getMyBooking,
 );
 router.get(
+  '/finished-booking',
+  auth(UserRoleEnum.ATHLETE, UserRoleEnum.COACH),
+  BookingController.getMyFinishedBooking,
+);
+router.get(
   '/reschedule/pending',
   auth(UserRoleEnum.ATHLETE, UserRoleEnum.COACH),
   BookingController.getPendingRescheduleRequests,

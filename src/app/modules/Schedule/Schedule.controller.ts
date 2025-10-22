@@ -19,7 +19,7 @@ const getSlotsByDate = catchAsync(async (req: Request, res: Response) => {
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
-    message: 'Successfully retrieved all Schedule',
+    message: result.message || 'Successfully retrieved all slots',
     data: result,
   });
 });

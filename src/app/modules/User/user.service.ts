@@ -2,7 +2,6 @@ import httpStatus from 'http-status';
 import { BookingStatus, User, UserRoleEnum, UserStatus } from '@prisma/client';
 import QueryBuilder from '../../builder/QueryBuilder';
 import { prisma } from '../../utils/prisma';
-
 import { Request } from 'express';
 import AppError from '../../errors/AppError';
 import { uploadToDigitalOceanAWS } from '../../utils/uploadToDigitalOceanAWS';
@@ -20,7 +19,14 @@ const getAllUsersFromDB = async (query: any) => {
     },
   });
   const result = await usersQuery
-    .search(['fullName', 'email', 'address'])
+    .search([
+      'fullName',
+      'athlete.fullName',
+      'coach.fullName',
+      'email',
+      'coach.address',
+      'athlete.address',
+    ])
     .filter()
     .where({
       isApproved: true,
@@ -38,6 +44,20 @@ const getAllUsersFromDB = async (query: any) => {
       status: true,
       isApproved: true,
       isDenied: true,
+      coach: {
+        select: {
+          id: true,
+          fullName: true,
+          address: true,
+        },
+      },
+      athlete: {
+        select: {
+          id: true,
+          fullName: true,
+          address: true,
+        },
+      },
     })
     .execute();
 
@@ -95,7 +115,7 @@ const getAllUnApproveCoach = async (options: IOptions) => {
     },
     skip,
     take: limit,
-    orderBy: { createdAt: 'desc' }, 
+    orderBy: { createdAt: 'desc' },
   });
 
   const total = await prisma.user.count({
@@ -125,7 +145,7 @@ const getMyProfileFromDB = async (id: string) => {
     },
     select: {
       id: true,
-      fullName: true,
+      // fullName: true,
       email: true,
       role: true,
       status: true,
@@ -142,6 +162,7 @@ const getMyProfileFromDB = async (id: string) => {
         fullName: true,
         profile: true,
         phoneNumber: true,
+        address: true,
       },
     });
   } else if (user.role === UserRoleEnum.COACH) {
@@ -173,6 +194,24 @@ const getMyProfileFromDB = async (id: string) => {
             title: true,
             price: true,
             duration: true,
+          },
+        },
+        review: {
+          select: {
+            id: true,
+            rating: true,
+            comment: true,
+            createdAt: true,
+            athlete: {
+              select: {
+                id: true,
+                fullName: true,
+                profile: true,
+              },
+            },
+          },
+          orderBy: {
+            createdAt: 'desc',
           },
         },
       },
@@ -207,7 +246,7 @@ const getUserDetailsFromDB = async (id: string) => {
     where: { id },
     select: {
       id: true,
-      fullName: true,
+      // fullName: true,
       email: true,
       role: true,
       status: true,
@@ -230,6 +269,7 @@ const getUserDetailsFromDB = async (id: string) => {
         fullName: true,
         profile: true,
         phoneNumber: true,
+        address: true,
       },
     });
   } else if (user.role === UserRoleEnum.COACH) {
@@ -370,16 +410,12 @@ const updateUserApproval = async (userId: string, adminId: string) => {
   if (!admin || admin.role !== UserRoleEnum.ADMIN) {
     throw new AppError(httpStatus.FORBIDDEN, 'Only admin can approve');
   }
-
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) throw new AppError(httpStatus.NOT_FOUND, 'User not found');
-
   if (user.role !== UserRoleEnum.COACH) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Only coaches can be approved');
   }
-
   const newApprovalStatus = !user.isApproved;
-
   const result = await prisma.user.update({
     where: { id: userId },
     data: { isApproved: newApprovalStatus },
@@ -393,7 +429,6 @@ const updateUserApproval = async (userId: string, adminId: string) => {
       isDenied: true,
     },
   });
-
   return result;
 };
 
@@ -522,6 +557,7 @@ const updateMyProfile = async (
         email: true,
         profile: true,
         phoneNumber: true,
+        address: true,
       },
     });
   }
