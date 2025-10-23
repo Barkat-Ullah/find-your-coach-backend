@@ -2,6 +2,7 @@ import {
   BookingStatus,
   GenderEnum,
   Prisma,
+  SlotStatus,
   UserRoleEnum,
 } from '@prisma/client';
 import { prisma } from '../../utils/prisma';
@@ -429,7 +430,7 @@ const getSpecifiCoaches = async (req: Request) => {
   if (!coach) {
     throw new AppError(httpStatus.NOT_FOUND, 'Coach not found');
   }
-  
+
   const dateObj = new Date(slotDate as string);
   const availability = await prisma.coachAvailability.findUnique({
     where: {
@@ -441,6 +442,7 @@ const getSpecifiCoaches = async (req: Request) => {
     include: {
       coach: { select: { id: true, fullName: true } },
       timeSlots: {
+        where: { status: SlotStatus.ACTIVE },
         orderBy: {
           startTime: 'asc',
         },

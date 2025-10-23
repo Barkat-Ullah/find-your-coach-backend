@@ -1,13 +1,13 @@
 model Notification {
     id         String  @id @default(auto()) @map("_id") @db.ObjectId
     receiverId String  @db.ObjectId
-    senderId   String  @db.ObjectId
+    senderId   String?  @db.ObjectId
     title      String
     body       String
     isRead     Boolean @default(false)
 
     receiver User @relation("Receiver", fields: [receiverId], references: [id])
-    sender   User @relation("Sender", fields: [senderId], references: [id])
+    sender   User? @relation("Sender", fields: [senderId], references: [id])
 
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt

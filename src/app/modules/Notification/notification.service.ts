@@ -2,6 +2,7 @@ import httpStatus from 'http-status';
 import admin from './firebaseAdmin';
 import AppError from '../../errors/AppError';
 import { prisma } from '../../utils/prisma';
+import { Request } from 'express';
 type SendNotificationParams = {
   userId: string;
   senderId: string;
@@ -185,33 +186,59 @@ const sendNotifications = async (req: any) => {
 
 const sendToAdmins = async (req: any, title: string, body: string) => {
   const admins = await prisma.user.findMany({
-    where: { role: 'ADMIN', fcmToken: { not: null } },
-    select: { id: true, fcmToken: true },
+    where: { role: 'ADMIN' },
+    select: { id: true },
   });
-  if (!admins.length) throw new AppError(404, 'No admins with FCM');
 
-  const fcmTokens = admins.map(a => a.fcmToken);
-  const message = { notification: { title, body }, tokens: fcmTokens }; 
-  const response = await admin.messaging().sendEachForMulticast(message as any);
+  if (!admins.length) throw new AppError(404, 'No admins found');
 
-  const successIndices = response.responses
-    .map((res: any, i: number) => (res.success ? i : null))
-    .filter((idx): idx is number => idx !== null);
-
-  const successfulAdmins = successIndices.map(i => admins[i]);
   await prisma.notification.createMany({
-    data: successfulAdmins.map(a => ({
-      receiverId: a.id,
-      senderId: req.user.id,
+    data: admins.map(admin => ({
+      receiverId: admin.id,
+      senderId: req.user?.id || 'system',
       title,
       body,
     })),
   });
 
   return {
-    successCount: response.successCount,
-    failureCount: response.failureCount,
+    message: 'In-app notifications created successfully for all admins',
+    count: admins.length,
   };
+};
+
+const adminNotify = async (req: Request) => {
+  const userId = req.user.id;
+const notifications = await prisma.notification.findMany({
+  where: { receiverId: userId },
+  select: {
+    id: true,
+    receiverId: true,
+    senderId: true,
+    title: true,
+    body: true,
+    sender: {
+      select: {
+        email: true,
+        coach: {
+          select: {
+            fullName: true,
+            profile: true,
+          },
+        },
+      },
+    },
+  },
+  orderBy: { createdAt: 'desc' },
+});
+
+// const result = await prisma.coach.findUnique({
+//   where: {
+//     id: senderId,
+//   },
+// });
+
+  return notifications;
 };
 
 // Fetch notifications for the current user
@@ -253,7 +280,7 @@ const getNotificationsFromDB = async (req: any) => {
       isRead: notification.isRead,
       createdAt: notification.createdAt,
       sender: {
-        id: notification.sender.id,
+        id: notification?.sender?.id,
       },
     }));
   } catch (error: any) {
@@ -316,8 +343,8 @@ const getSingleNotificationFromDB = async (
       isRead: updatedNotification.isRead,
       createdAt: updatedNotification.createdAt,
       sender: {
-        id: updatedNotification.sender.id,
-        email: updatedNotification.sender.email,
+        id: updatedNotification?.sender?.id,
+        email: updatedNotification?.sender?.email,
       },
     };
   } catch (error: any) {
@@ -331,4 +358,5 @@ export const notificationServices = {
   getNotificationsFromDB,
   getSingleNotificationFromDB,
   sendToAdmins,
+  adminNotify,
 };

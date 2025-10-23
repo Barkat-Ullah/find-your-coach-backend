@@ -378,7 +378,7 @@ const getHomePageData = async (coachMail: string) => {
     date: booking.bookingDate.toISOString().split('T')[0],
     time: booking.timeSlot
       ? formatTimeRange(booking.timeSlot.startTime, booking.timeSlot.endTime)
-      : '11:00 AM - 12:00 PM', // default
+      : '11:00 AM - 12:00 PM', 
     status: booking.status,
   }));
 

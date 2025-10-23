@@ -272,7 +272,7 @@ const getMyBooking = async (email: string) => {
   if (!athlete && !coach) {
     throw new AppError(httpStatus.NOT_FOUND, 'User not found');
   }
-
+     
   let bookings;
 
   // Base where clause
@@ -1083,6 +1083,7 @@ const respondToReschedule = async (
     });
 
     return result;
+    
   } else if (payload.status === BookingStatus.RESCHEDULED_CANCELED) {
     const result = await prisma.$transaction(async tx => {
       // Reschedule request cancel

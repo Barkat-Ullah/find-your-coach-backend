@@ -1,4 +1,5 @@
 import catchAsync from '../../utils/catchAsync';
+import { prisma } from '../../utils/prisma';
 import sendResponse from '../../utils/sendResponse';
 import { notificationServices } from './Notification.service';
 
@@ -35,6 +36,17 @@ const sendToAdmins = catchAsync(async (req: any, res: any) => {
   });
 });
 
+const getAllNotificationsForAdmin = catchAsync(async (req, res) => {
+  const result = await notificationServices.adminNotify(req);
+
+  sendResponse(res, {
+    success: true,
+    statusCode: 200,
+    message: 'Notifications fetched successfully',
+    data: result,
+  });
+});
+
 const getNotifications = catchAsync(async (req: any, res: any) => {
   const notifications = await notificationServices.getNotificationsFromDB(req);
 
@@ -67,4 +79,5 @@ export const notificationController = {
   getNotifications,
   getSingleNotificationById,
   sendToAdmins,
+  getAllNotificationsForAdmin,
 };

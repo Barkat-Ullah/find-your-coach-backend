@@ -12,6 +12,7 @@ model Coach {
     longitude     Float?
     address       String?
     price         Float?
+
     gender        GenderEnum?
     age           String?
 
