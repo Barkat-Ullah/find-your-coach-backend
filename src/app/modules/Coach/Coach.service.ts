@@ -1,17 +1,15 @@
-import {
-  BookingStatus,
-  GenderEnum,
-  Prisma,
-  SlotStatus,
-  UserRoleEnum,
-} from '@prisma/client';
+import { BookingStatus, Prisma, SlotStatus } from '@prisma/client';
 import { prisma } from '../../utils/prisma';
 import { formatTimeWithAMPM } from '../Schedule/Schedule.constants';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
 import { Request } from 'express';
+import { getWeeklySchedule } from './Coach.constant';
 
-const getAllCoach = async (query: Record<string, any>) => {
+const getAllCoach = async (
+  query: Record<string, any>,
+  athleteEmail: string,
+) => {
   const {
     searchTerm,
     rating,
@@ -34,7 +32,6 @@ const getAllCoach = async (query: Record<string, any>) => {
     { specialtyId: { in: validSpecialtyIds } },
   ];
 
-  // Search functionality (name, email, address, specialty title)
   if (searchTerm) {
     whereConditions.push({
       OR: [
@@ -83,10 +80,35 @@ const getAllCoach = async (query: Record<string, any>) => {
 
   const whereClause: Prisma.CoachWhereInput = { AND: whereConditions };
 
+  const favorite = await prisma.favorite.findMany({
+    where: {
+      athleteEmail: athleteEmail,
+      isFavorite: true,
+    },
+  });
+  const favoriteCoachEmails = favorite.map(f => f.coachEmail);
+
   // Fetch all coaches with necessary data
   const coaches = await prisma.coach.findMany({
     where: whereClause,
-    include: {
+    select: {
+      id: true,
+      fullName: true,
+      email: true,
+      profile: true,
+      phoneNumber: true,
+      experience: true,
+      location: true,
+      expertise: true,
+      certification: true,
+      latitude: true,
+      longitude: true,
+      address: true,
+      price: true,
+      gender: true,
+      age: true,
+      isRecommendedPayment: true,
+      recommendedTime: true,
       specialty: {
         select: {
           id: true,
@@ -104,10 +126,21 @@ const getAllCoach = async (query: Record<string, any>) => {
           title: true,
         },
       },
+
+      availabilities: {
+        select: {
+          id: true,
+          slotDate: true,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+        take: 5,
+      },
     },
   });
 
-  // Calculate average rating for each coach and add it to coach object
+  // Calculate average rating for each coach
   const coachesWithRating = coaches.map(coach => {
     const totalRating = coach.review.reduce(
       (sum, review) => sum + review.rating,
@@ -120,6 +153,7 @@ const getAllCoach = async (query: Record<string, any>) => {
       ...coach,
       avgRating: parseFloat(avgRating.toFixed(2)),
       totalReviews: coach.review.length,
+      isFavorite: favoriteCoachEmails.includes(coach.email),
     };
   });
 
@@ -181,9 +215,16 @@ const getAllCoach = async (query: Record<string, any>) => {
   };
 };
 
-const getCoachByIdFromDB = async (id: string) => {
+const getCoachByIdFromDB = async (id: string, athleteMail: string) => {
+  // Set today's date to midnight UTC
   const today = new Date();
   today.setUTCHours(0, 0, 0, 0);
+  const currentWindowStart = today;
+  const currentWindowEnd = new Date(today);
+  currentWindowEnd.setDate(today.getDate() + 7);
+  currentWindowEnd.setUTCHours(0, 0, 0, 0);
+
+  // ------------------------------------------
 
   const coach = await prisma.coach.findUnique({
     where: { id },
@@ -258,22 +299,33 @@ const getCoachByIdFromDB = async (id: string) => {
     },
   });
 
+  const favoriteCoaches = await prisma.favorite.findMany({
+    where: {
+      athleteEmail: athleteMail,
+    },
+    select: {
+      coachEmail: true,
+    },
+  });
+  const favoriteCoachEmails = favoriteCoaches.map(fav => fav.coachEmail);
+  const isFavorite = favoriteCoachEmails.includes(coach?.email as string);
+
   if (!coach) {
     return null;
   }
+  // --- FILTERING FOR 7-DAY WINDOW ONLY ---
+  const rollingWindowAvailabilities = coach.availabilities.filter(
+    availability => {
+      const slotDate = new Date(availability.slotDate);
+      return slotDate >= currentWindowStart && slotDate < currentWindowEnd;
+    },
+  );
 
-  const filteredAvailabilities = coach.availabilities.slice(0, 5);
+  // --- GENERATE WEEKLY SCHEDULE USING FILTERED DATA ---
+  const projectedWeeklySchedule = getWeeklySchedule(
+    rollingWindowAvailabilities,
+  );
 
-  const formattedAvailabilities = filteredAvailabilities.map(availability => ({
-    id: availability.id,
-    slotDate: availability.slotDate,
-    startTime: formatTimeWithAMPM(availability.startTime),
-    endTime: formatTimeWithAMPM(availability.endTime),
-    isActive: availability.isActive,
-    // timeSlots:availability.timeSlots
-  }));
-
-  // Calculate average rating
   const totalRating = coach.review.reduce(
     (sum, review) => sum + review.rating,
     0,
@@ -281,9 +333,20 @@ const getCoachByIdFromDB = async (id: string) => {
   const avgRating =
     coach.review.length > 0 ? totalRating / coach.review.length : 0;
 
+  const uniqueAthletes = await prisma.booking.groupBy({
+    by: ['athleteId'],
+    where: {
+      coachId: coach.id,
+      status: BookingStatus.CONFIRMED,
+    },
+  });
+  const totalStudents = uniqueAthletes.length;
+
   return {
     ...coach,
-    availabilities: formattedAvailabilities,
+    isFavorite,
+    totalStudents,
+    weeklySchedule: projectedWeeklySchedule,
     avgRating: parseFloat(avgRating.toFixed(2)),
     totalReviews: coach.review.length,
   };
@@ -422,14 +485,48 @@ const getSpecifiCoaches = async (req: Request) => {
   const { slotDate } = req.query;
   const { coachId } = req.params;
 
+  // Fetch coach with reviews upfront for consistent rating calculation
   const coach = await prisma.coach.findUnique({
     where: {
       id: coachId,
+    },
+    include: {
+      specialty: {
+        select: {
+          title: true,
+        },
+      },
+      review: {
+        select: {
+          id: true,
+          rating: true,
+          comment: true,
+          createdAt: true,
+          athlete: {
+            select: {
+              id: true,
+              fullName: true,
+              profile: true,
+            },
+          },
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      },
     },
   });
   if (!coach) {
     throw new AppError(httpStatus.NOT_FOUND, 'Coach not found');
   }
+
+  // Calculate rating from coach reviews (always available)
+  const totalRating = coach.review.reduce(
+    (sum, review) => sum + review.rating,
+    0,
+  );
+  const avgRating =
+    coach.review.length > 0 ? totalRating / coach.review.length : 0;
 
   const dateObj = new Date(slotDate as string);
   const availability = await prisma.coachAvailability.findUnique({
@@ -440,7 +537,6 @@ const getSpecifiCoaches = async (req: Request) => {
       },
     },
     include: {
-      coach: { select: { id: true, fullName: true } },
       timeSlots: {
         where: { status: SlotStatus.ACTIVE },
         orderBy: {
@@ -450,26 +546,33 @@ const getSpecifiCoaches = async (req: Request) => {
     },
   });
 
-  if (!availability) {
-    return {
-      message: 'No slots found for this date',
-      slots: [],
-    };
-  }
-
+  // Dynamic nice message based on slots availability
+  const totalSlots = availability?.timeSlots?.length ?? 0;
+  const message =
+    totalSlots > 0
+      ? `Excellent! ${coach.fullName} has ${totalSlots} active slots available on ${slotDate}. Book your preferred time now!`
+      : `Slots are available on ${slotDate}, but no active time slots at the moment. Check back later or contact the coach.`;
   return {
-    date: slotDate,
-    isActive: availability.isActive,
-    availabilityTime: {
-      coachId: availability.coach.id,
-      coachName: availability.coach.fullName,
-      startTime: formatTimeWithAMPM(availability.startTime),
-      endTime: formatTimeWithAMPM(availability.endTime),
+    coach: {
+      id: coach.id,
+      fullName: coach.fullName,
+      profile: coach.profile,
+      price: coach.price,
+      experience: coach.experience,
+      expertise: coach.expertise,
+      specialty: coach?.specialty?.title || null,
     },
-    slots: availability.timeSlots.map(slot => ({
+    rating: {
+      avgRating: parseFloat(avgRating.toFixed(2)),
+      totalReviews: coach.review.length,
+    },
+    message,
+    date: slotDate,
+    isActive: availability?.isActive ?? false,
+    slots: availability?.timeSlots.map(slot => ({
       id: slot.id,
-      startTime: formatTimeWithAMPM(slot.startTime), // "10:00 AM"
-      endTime: formatTimeWithAMPM(slot.endTime), // "11:00 AM"
+      startTime: formatTimeWithAMPM(slot.startTime),
+      endTime: formatTimeWithAMPM(slot.endTime),
       status: slot.status,
       isBooked: slot.isBooked,
     })),

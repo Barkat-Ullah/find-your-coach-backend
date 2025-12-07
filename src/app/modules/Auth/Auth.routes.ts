@@ -8,6 +8,8 @@ import { fileUploader } from '../../utils/fileUploader';
 
 const router = express.Router();
 
+router.post('/social-login',AuthControllers.SocialLogin)
+
 router.post(
   '/login',
   validateRequest.body(authValidation.loginUser),

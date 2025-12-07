@@ -12,7 +12,8 @@ import { ReportRoutes } from '../modules/Report/Report.routes';
 import { BookingRoutes } from '../modules/Booking/Booking.routes';
 import { ReviewRoutes } from '../modules/Review/Review.routes';
 import { MetaRoutes } from '../modules/meta/meta.routes';
-import { notificationsRoute } from '../modules/Notification/Notification.routes';
+import { notificationsRoute } from '../modules/Notifications/Notification.routes';
+
 
 const router = express.Router();
 

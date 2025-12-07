@@ -267,12 +267,12 @@ const getMyReview = async (email: string) => {
           },
         },
       },
-      coach: {
-        select: {
-          id: true,
-          fullName: true,
-        },
-      },
+      // coach: {
+      //   select: {
+      //     id: true,
+      //     fullName: true,
+      //   },
+      // },
     },
     orderBy: {
       createdAt: 'desc',

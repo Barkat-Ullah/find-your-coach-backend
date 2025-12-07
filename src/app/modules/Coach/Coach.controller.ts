@@ -5,7 +5,7 @@ import { Request, Response } from 'express';
 import { CoachServices } from './Coach.service';
 
 const getAllCoach = catchAsync(async (req: Request, res: Response) => {
-  const result = await CoachServices.getAllCoach(req.query);
+  const result = await CoachServices.getAllCoach(req.query,req.user.email);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
@@ -27,7 +27,7 @@ const getMyCoach = catchAsync(async (req: Request, res: Response) => {
 
 const getCoachById = catchAsync(async (req: Request, res: Response) => {
   const { id } = req.params;
-  const result = await CoachServices.getCoachByIdFromDB(id);
+  const result = await CoachServices.getCoachByIdFromDB(id,req.user.email);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
@@ -43,8 +43,7 @@ const getSpecifiCoacheSlotByDate = catchAsync(
       statusCode: httpStatus.OK,
       success: true,
       message:
-        result.message ||
-        `Successfully fetched ${result.availabilityTime?.coachName} slot date`,
+        result.message,
       data: result,
     });
   },

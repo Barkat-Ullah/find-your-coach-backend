@@ -1,6 +1,7 @@
 import { Request } from 'express';
 import { uploadToDigitalOceanAWS } from '../../utils/uploadToDigitalOceanAWS';
 import { prisma } from '../../utils/prisma';
+import { uploadToCloudinary } from '../../utils/uploadToCloudinary';
 
 const createIntoDb = async (req: Request) => {
   const file = req.file as Express.Multer.File | undefined;
@@ -10,7 +11,8 @@ const createIntoDb = async (req: Request) => {
     throw new Error('Banner image is required');
   }
 
-  const uploaded = await uploadToDigitalOceanAWS(file);
+  // const uploaded = await uploadToDigitalOceanAWS(file);
+  const uploaded = await uploadToCloudinary(file);
   const iconUrl = uploaded.Location;
 
   const result = await prisma.banner.create({

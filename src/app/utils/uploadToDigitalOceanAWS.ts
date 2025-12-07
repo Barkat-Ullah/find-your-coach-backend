@@ -15,7 +15,7 @@ interface UploadResponse {
 }
 
 const s3Client = new S3Client({
-  region: 'us-east-1', // Set any valid region
+  region: 'us-east-1',
   endpoint: `${endpoints}`,
   credentials: {
     accessKeyId: `${accessKey}`,

@@ -230,6 +230,11 @@ const getCoachSubscription = async (coachMail: string) => {
 const getSubscriptionByIdFromDB = async (id: string) => {
   const subscription = await prisma.subscription.findUnique({
     where: { id },
+    omit: {
+      createdAt: true,
+      updatedAt: true,
+      adminId: true,
+    },
   });
 
   return subscription;
@@ -237,7 +242,33 @@ const getSubscriptionByIdFromDB = async (id: string) => {
 
 // Update Subscription
 const updateIntoDb = async (id: string, data: Partial<any>) => {
-  // normalize price
+  const subscription = await prisma.subscription.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      title: true,
+      price: true,
+      duration: true,
+      stripePriceId: true,
+      stripeProductId: true,
+    },
+  });
+
+  if (!subscription) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Subscription not found');
+  }
+
+  // Must have stripe product id
+  if (!subscription.stripeProductId) {
+    throw new AppError(
+      httpStatus.INTERNAL_SERVER_ERROR,
+      'Missing Stripe Product ID. Cannot update paid subscription.',
+    );
+  }
+
+  const stripeProductId = subscription.stripeProductId;
+
+  // Normalize price
   const price =
     data.price !== undefined && data.price !== null
       ? typeof data.price === 'string'
@@ -245,35 +276,68 @@ const updateIntoDb = async (id: string, data: Partial<any>) => {
         : Number(data.price)
       : undefined;
 
-  // normalize feature using toStringArray
-  const featureArray =
-    data.feature !== undefined ? toStringArray(data.feature) : undefined;
+  const updateData: any = {};
 
-  const updateData: any = {
-    ...(data.title && { title: data.title }),
-    ...(price !== undefined && !Number.isNaN(price) && { price }),
-    ...(data.subscriptionType && { subscriptionType: data.subscriptionType }),
-    ...(data.duration && { duration: data.duration }),
-  };
+  // -----------------------------
+  // 1️⃣ UPDATE STRIPE PRODUCT
+  // -----------------------------
+  const needToUpdateProduct = data.title || data.duration || data.description;
 
-  // Mongo variant: use set (replace) or push (append)
-  if (featureArray !== undefined) {
-    if (data.appendFeature) {
-      updateData.feature = { push: featureArray };
-    } else {
-      updateData.feature = { set: featureArray };
-    }
+  if (needToUpdateProduct) {
+    await stripe.products.update(stripeProductId, {
+      name: data.title || subscription.title,
+      description: `${data.duration || subscription.duration} subscription plan`,
+    });
+
+    if (data.title) updateData.title = data.title;
+    if (data.duration) updateData.duration = data.duration;
   }
 
-  const subscription = await prisma.subscription.update({
+  // 2️⃣ UPDATE STRIPE PRICE
+  let stripePriceId = subscription.stripePriceId;
+
+  if (price !== undefined && price !== subscription.price) {
+    if (subscription.stripePriceId) {
+      await stripe.prices.update(subscription.stripePriceId, {
+        active: false,
+      });
+    }
+
+    const newPrice = await stripe.prices.create({
+      unit_amount: Math.round(price * 100),
+      currency: 'usd',
+      recurring: {
+        interval: subscription.duration === 'YEARLY' ? 'year' : 'month',
+      },
+      product: stripeProductId,
+    });
+
+    stripePriceId = newPrice.id;
+    updateData.stripePriceId = newPrice.id;
+    updateData.price = price;
+  }
+
+  // -----------------------------
+  // 3️⃣ UPDATE MONGO FEATURES
+
+  if (data.feature !== undefined) {
+    const featureArray = toStringArray(data.feature);
+    updateData.feature = featureArray;
+  }
+
+  // -----------------------------
+  // 4️⃣ FINAL DATABASE UPDATE
+  
+  const result = await prisma.subscription.update({
     where: { id },
     data: updateData,
   });
 
-  return subscription;
+  return result;
 };
 
-// Hard Delete Subscription
+
+// 
 const deleteIntoDb = async (id: string) => {
   const subscription = await prisma.subscription.update({
     where: { id },

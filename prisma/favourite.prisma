@@ -1,10 +1,13 @@
 model Favorite {
-  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  id           String  @id @default(auto()) @map("_id") @db.ObjectId
   athleteEmail String
   coachEmail   String
+  isFavorite   Boolean @default(false)
 
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  // athlete Athlete @relation(fields: [athleteEmail], references: [email])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([athleteEmail, coachEmail])
   @@map("favorites")

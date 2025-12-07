@@ -272,7 +272,7 @@ const getMyBooking = async (email: string) => {
   if (!athlete && !coach) {
     throw new AppError(httpStatus.NOT_FOUND, 'User not found');
   }
-     
+
   let bookings;
 
   // Base where clause
@@ -561,6 +561,7 @@ const cancelBooking = async (
           id: true,
           fullName: true,
           email: true,
+          profile:true
         },
       },
       coach: {
@@ -568,6 +569,7 @@ const cancelBooking = async (
           id: true,
           fullName: true,
           email: true,
+          profile:true
         },
       },
       timeSlot: {
@@ -690,6 +692,7 @@ const finishBooking = async (
           id: true,
           fullName: true,
           email: true,
+          profile:true
         },
       },
       coach: {
@@ -697,6 +700,7 @@ const finishBooking = async (
           id: true,
           fullName: true,
           email: true,
+          profile:true
         },
       },
       timeSlot: {
@@ -704,6 +708,7 @@ const finishBooking = async (
           id: true,
           startTime: true,
           endTime: true,
+          
         },
       },
     },
@@ -765,6 +770,7 @@ const finishBooking = async (
           id: true,
           fullName: true,
           email: true,
+          profile:true
         },
       },
       coach: {
@@ -772,6 +778,7 @@ const finishBooking = async (
           id: true,
           fullName: true,
           email: true,
+          profile:true
         },
       },
       timeSlot: {
@@ -937,6 +944,7 @@ const requestReschedule = async (
             id: true,
             fullName: true,
             email: true,
+            profile:true
           },
         },
         coach: {
@@ -944,6 +952,7 @@ const requestReschedule = async (
             id: true,
             fullName: true,
             email: true,
+            profile:true
           },
         },
         timeSlot: {
@@ -974,7 +983,7 @@ const respondToReschedule = async (
   userEmail: string,
   userRole: UserRoleEnum,
   payload: {
-    rescheduleRequestId: string;
+    rescheduleFromId: string;
     status: 'RESCHEDULED_ACCEPTED' | 'RESCHEDULED_CANCELED';
   },
 ) => {
@@ -989,7 +998,7 @@ const respondToReschedule = async (
 
   // Reschedule request booking
   const rescheduleRequest = await prisma.booking.findUnique({
-    where: { id: payload.rescheduleRequestId },
+    where: { id: payload.rescheduleFromId },
     include: {
       athlete: true,
       coach: true,
@@ -1051,7 +1060,7 @@ const respondToReschedule = async (
 
       // New booking accept
       const acceptedBooking = await tx.booking.update({
-        where: { id: payload.rescheduleRequestId },
+        where: { id: payload.rescheduleFromId },
         data: {
           status: BookingStatus.RESCHEDULED_ACCEPTED,
         },
@@ -1061,6 +1070,7 @@ const respondToReschedule = async (
               id: true,
               fullName: true,
               email: true,
+              profile:true
             },
           },
           coach: {
@@ -1068,6 +1078,7 @@ const respondToReschedule = async (
               id: true,
               fullName: true,
               email: true,
+              profile:true
             },
           },
           timeSlot: {
@@ -1083,12 +1094,11 @@ const respondToReschedule = async (
     });
 
     return result;
-    
   } else if (payload.status === BookingStatus.RESCHEDULED_CANCELED) {
     const result = await prisma.$transaction(async tx => {
       // Reschedule request cancel
       await tx.booking.update({
-        where: { id: payload.rescheduleRequestId },
+        where: { id: payload.rescheduleFromId },
         data: {
           status: BookingStatus.RESCHEDULED_CANCELED,
         },
@@ -1122,7 +1132,7 @@ const respondToReschedule = async (
 
       return {
         canceledRequest: await tx.booking.findUnique({
-          where: { id: payload.rescheduleRequestId },
+          where: { id: payload.rescheduleFromId },
           include: {
             athlete: {
               select: {

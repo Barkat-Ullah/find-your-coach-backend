@@ -7,7 +7,7 @@ const createIntoDb = async (req: Request) => {
   const coachMail = req.user.email;
   const { slotDate, startTime, endTime } = req.body;
 
-  const intervalTime = 60; // minutes
+  const intervalTime = 60;
 
   // Find coach by email
   const coach = await prisma.coach.findUnique({
@@ -76,7 +76,6 @@ const createIntoDb = async (req: Request) => {
       status: SlotStatus.ACTIVE,
     });
 
-    // Move to next interval
     currentTime.setMinutes(currentTime.getMinutes() + intervalTime);
   }
 
@@ -98,8 +97,8 @@ const createIntoDb = async (req: Request) => {
   return {
     availability: {
       ...availability,
-      startTime: formatTimeWithAMPM(availability.startTime), // Format for response
-      endTime: formatTimeWithAMPM(availability.endTime), // Format for response
+      startTime: formatTimeWithAMPM(availability.startTime), 
+      endTime: formatTimeWithAMPM(availability.endTime),
     },
     slotsCreated: createdSlots.length,
     slots: createdSlots.map(slot => ({
@@ -272,9 +271,8 @@ const addNewSlot = async (req: Request) => {
       data: {
         coachId: coach.id,
         slotDate: slotDateObj,
-        startTime: startDateTime, // Store DateTime object
-        endTime: endDateTime, // Store DateTime object
-        isActive: true,
+        startTime: startDateTime,
+        endTime: endDateTime,
       },
       include: {
         timeSlots: true,

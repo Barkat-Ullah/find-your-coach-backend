@@ -7,7 +7,7 @@ import config from '../../config';
 import { prisma } from './prisma';
 import { stripe } from './stripe';
 import { PaymentStatus, SubscriptionType } from '@prisma/client';
-import { notificationServices } from '../modules/Notification/Notification.service';
+import { notificationServices } from '../modules/Notifications/Notification.service';
 
 // ----------------------
 // 🔥 Stripe Webhook Entry
@@ -74,13 +74,24 @@ const StripeHook = async (
         const payment = await prisma.payment.findUnique({
           where: { id: existingPayment.id },
           include: {
-            coach: { select: { fullName: true } },
+            coach: {
+              select: {
+                id: true,
+                fullName: true,
+                profile: true,
+                user: {
+                  select: {
+                    id: true,
+                  },
+                },
+              },
+            },
             subscription: true,
           },
         });
         if (payment?.coach && payment.subscription) {
           await notificationServices.sendToAdmins(
-            { user: { id: 'system_id' } },
+            { user: { id: payment.coach.user.id } },
             'Payment Succeeded',
             `Coach ${payment?.coach?.fullName} paid $${payment?.amount} for ${payment?.subscription?.title}.`,
           );

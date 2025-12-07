@@ -3,6 +3,7 @@ import { Request } from 'express';
 import { uploadToDigitalOceanAWS } from '../../utils/uploadToDigitalOceanAWS';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
+import { uploadToCloudinary } from '../../utils/uploadToCloudinary';
 
 // ✅ Create specialty
 const createIntoDb = async (req: Request) => {
@@ -11,8 +12,12 @@ const createIntoDb = async (req: Request) => {
 
   let iconUrl: string | null = null;
 
+  // if (file) {
+  //   const uploaded = await uploadToDigitalOceanAWS(file);
+  //   iconUrl = uploaded.Location;
+  // }
   if (file) {
-    const uploaded = await uploadToDigitalOceanAWS(file);
+    const uploaded = await uploadToCloudinary(file);
     iconUrl = uploaded.Location;
   }
 
@@ -30,6 +35,11 @@ const createIntoDb = async (req: Request) => {
 const getAllSpecialty = async (query: Record<string, any>) => {
   const result = await prisma.specialties.findMany({
     where: {
+      isActive: true,
+    },
+    omit: {
+      createdAt: true,
+      updatedAt: true,
       isActive: true,
     },
     orderBy: { title: 'asc' },

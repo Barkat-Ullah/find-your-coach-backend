@@ -122,7 +122,23 @@ const resetPassword = catchAsync(async (req, res) => {
   });
 });
 
+const SocialLogin = catchAsync(async(req,res)=>{
+  const payload = req.body;
+  const result = await AuthServices.createFirebaseLogin(payload);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Firebase login successful',
+    data: {
+      user: result.user,
+      accessToken: result.accessToken,
+    },
+  });
+});
+
 export const AuthControllers = {
+  SocialLogin,
   loginWithOtp,
   registerAthlete,
   registerCoach,

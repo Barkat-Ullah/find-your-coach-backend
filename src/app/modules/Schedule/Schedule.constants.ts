@@ -7,7 +7,7 @@ export const formatTimeWithAMPM = (date: Date): string => {
 
   // Convert to 12-hour format
   hours = hours % 12;
-  hours = hours ? hours : 12; // 0 should be 12
+  hours = hours ? hours : 12; 
 
   // Add leading zero to minutes if needed
   const minutesStr = minutes < 10 ? '0' + minutes : minutes;

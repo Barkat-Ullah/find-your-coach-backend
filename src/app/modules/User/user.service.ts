@@ -6,12 +6,22 @@ import { Request } from 'express';
 import AppError from '../../errors/AppError';
 import { uploadToDigitalOceanAWS } from '../../utils/uploadToDigitalOceanAWS';
 import { calculatePagination, IOptions } from '../../utils/calculatePagination';
+import { uploadToCloudinary } from '../../utils/uploadToCloudinary';
 
 interface UserWithOptionalPassword extends Omit<User, 'password'> {
   password?: string;
 }
 
 const getAllUsersFromDB = async (query: any) => {
+  // await prisma.coach.update({
+  //   where: {
+  //     id: '6925247ef7ccfbf07a93a11e',
+  //   },
+  //   data: {
+  //     experience: 5,
+  //   },
+  // });
+
   const usersQuery = new QueryBuilder<typeof prisma.user>(prisma.user, query);
   usersQuery.where({
     role: {
@@ -138,7 +148,7 @@ const getAllUnApproveCoach = async (options: IOptions) => {
 };
 
 const getMyProfileFromDB = async (id: string) => {
-  const user = await prisma.user.findUniqueOrThrow({
+  const user = await prisma.user.findUnique({
     where: {
       id,
       status: UserStatus.ACTIVE,
@@ -151,6 +161,10 @@ const getMyProfileFromDB = async (id: string) => {
       status: true,
     },
   });
+
+  if (!user) {
+    throw new AppError(401, 'User not found');
+  }
 
   let profileInfo = null;
 
@@ -534,12 +548,14 @@ const updateMyProfile = async (
   let certificationUrl: string | null = null;
 
   if (profileFile) {
-    const uploaded = await uploadToDigitalOceanAWS(profileFile);
+    // const uploaded = await uploadToDigitalOceanAWS(profileFile);
+    const uploaded = await uploadToCloudinary(profileFile);
     profileUrl = uploaded.Location;
   }
 
   if (role === UserRoleEnum.COACH && certificationFile) {
-    const uploadedCert = await uploadToDigitalOceanAWS(certificationFile);
+    // const uploadedCert = await uploadToDigitalOceanAWS(certificationFile);
+    const uploadedCert = await uploadToCloudinary(certificationFile);
     certificationUrl = uploadedCert.Location;
   }
 
@@ -622,7 +638,8 @@ const updateUserIntoDb = async (req: Request, id: string) => {
   let profileUrl: string | null = null;
 
   if (file) {
-    const location = await uploadToDigitalOceanAWS(file);
+    // const location = await uploadToDigitalOceanAWS(file);
+    const location = await uploadToCloudinary(file);
     profileUrl = location.Location;
   }
 

@@ -20,15 +20,20 @@ import {
   uploadToDigitalOceanAWS,
 } from '../../utils/uploadToDigitalOceanAWS';
 import { toStringArray } from './Auth.constants';
+import { uploadToCloudinary } from '../../utils/uploadToCloudinary';
 
 // ======================== LOGIN WITH OTP ========================
 const loginWithOtpFromDB = async (
   res: Response,
   payload: { email: string; password: string; fcmToken?: string },
 ) => {
-  const userData = await insecurePrisma.user.findUniqueOrThrow({
+  const userData = await insecurePrisma.user.findUnique({
     where: { email: payload.email },
   });
+
+  if (!userData) {
+    throw new AppError(401, 'User not found');
+  }
 
   const isCorrectPassword = await bcrypt.compare(
     payload.password,
@@ -100,18 +105,24 @@ const registerAthleteIntoDB = async (
   let profileUrl: string | undefined;
   const uploadedUrlsToCleanup: string[] = [];
 
+  // if (profileFile) {
+  //   try {
+  //     const up = await uploadToDigitalOceanAWS(profileFile);
+  //     profileUrl = up.Location;
+  //     uploadedUrlsToCleanup.push(profileUrl);
+  //   } catch (err) {
+  //     throw new AppError(
+  //       httpStatus.INTERNAL_SERVER_ERROR,
+  //       'Failed to upload profile image',
+  //     );
+  //   }
+  // }
+
   if (profileFile) {
-    try {
-      const up = await uploadToDigitalOceanAWS(profileFile);
-      profileUrl = up.Location;
-      uploadedUrlsToCleanup.push(profileUrl);
-    } catch (err) {
-      throw new AppError(
-        httpStatus.INTERNAL_SERVER_ERROR,
-        'Failed to upload profile image',
-      );
-    }
+    const result = await uploadToCloudinary(profileFile);
+    profileUrl = result.Location;
   }
+  // console.log({ profileFile });
 
   // normalize category -> string[]
   const categories = toStringArray(payload.category);
@@ -127,6 +138,7 @@ const registerAthleteIntoDB = async (
           otp,
           otpExpiry: otpExpiryTime(),
           isApproved: true,
+          // fcmToken: payload.fcmToken ?? undefined,
         },
       });
 
@@ -185,38 +197,47 @@ const registerCoachIntoDB = async (
   let certificateUrl: string | undefined;
   const uploadedUrlsToCleanup: string[] = [];
 
-  if (profileFile) {
-    try {
-      const up = await uploadToDigitalOceanAWS(profileFile);
-      profileUrl = up.Location;
-      uploadedUrlsToCleanup.push(profileUrl);
-    } catch (err) {
-      throw new AppError(
-        httpStatus.INTERNAL_SERVER_ERROR,
-        'Failed to upload profile image',
-      );
-    }
-  }
+  // if (profileFile) {
+  //   try {
+  //     const up = await uploadToDigitalOceanAWS(profileFile);
+  //     profileUrl = up.Location;
+  //     uploadedUrlsToCleanup.push(profileUrl);
+  //   } catch (err) {
+  //     throw new AppError(
+  //       httpStatus.INTERNAL_SERVER_ERROR,
+  //       'Failed to upload profile image',
+  //     );
+  //   }
+  // }
 
-  if (certificateFile) {
-    try {
-      const up = await uploadToDigitalOceanAWS(certificateFile);
-      certificateUrl = up.Location;
-      uploadedUrlsToCleanup.push(certificateUrl);
-    } catch (err) {
-      if (uploadedUrlsToCleanup.length) {
-        await Promise.all(
-          uploadedUrlsToCleanup.map(u =>
-            deleteFromDigitalOceanAWS(u).catch(() => null),
-          ),
-        );
-      }
-      throw new AppError(
-        httpStatus.INTERNAL_SERVER_ERROR,
-        'Failed to upload certificate',
-      );
+  // if (certificateFile) {
+  //   try {
+  //     const up = await uploadToDigitalOceanAWS(certificateFile);
+  //     certificateUrl = up.Location;
+  //     uploadedUrlsToCleanup.push(certificateUrl);
+  //   } catch (err) {
+  //     if (uploadedUrlsToCleanup.length) {
+  //       await Promise.all(
+  //         uploadedUrlsToCleanup.map(u =>
+  //           deleteFromDigitalOceanAWS(u).catch(() => null),
+  //         ),
+  //       );
+  //     }
+  //     throw new AppError(
+  //       httpStatus.INTERNAL_SERVER_ERROR,
+  //       'Failed to upload certificate',
+  //     );
+  //   }
+  // }
+
+    if (profileFile) {
+      const result = await uploadToCloudinary(profileFile);
+      profileUrl = result.Location;
     }
-  }
+    if (certificateFile) {
+      const result = await uploadToCloudinary(certificateFile);
+      certificateUrl = result.Location;
+    }
 
   // normalize expertise -> string[]
   const expertiseArr = toStringArray(payload.expertise);
@@ -232,6 +253,7 @@ const registerCoachIntoDB = async (
           otp,
           otpExpiry: otpExpiryTime(),
           isApproved: false,
+          // fcmToken: payload.fcmToken ?? undefined,
         },
       });
 
@@ -258,6 +280,7 @@ const registerCoachIntoDB = async (
       await emailSender(newUser.email, html, 'OTP Verification');
     });
   } catch (err) {
+    console.log({err})
     if (uploadedUrlsToCleanup.length) {
       await Promise.all(
         uploadedUrlsToCleanup.map(u =>
@@ -330,7 +353,6 @@ const verifyOtpCommon = async (payload: { email: string; otp: string }) => {
 
     return {
       message,
-      accessToken,
       id: user.id,
       name: user.fullName,
       email: user.email,
@@ -338,6 +360,7 @@ const verifyOtpCommon = async (payload: { email: string; otp: string }) => {
       isDeleted: user.isDeleted,
       isApproved: user.isApproved,
       isDenied: user.isDenied,
+      accessToken,
     };
   }
   // Step 5: Handle forgot password case
@@ -354,7 +377,10 @@ const verifyOtpCommon = async (payload: { email: string; otp: string }) => {
 
 // ======================== RESEND OTP ========================
 const resendVerificationWithOtp = async (email: string) => {
-  const user = await insecurePrisma.user.findFirstOrThrow({ where: { email } });
+  const user = await insecurePrisma.user.findFirst({ where: { email } });
+  if (!user) {
+    throw new AppError(401, 'User not found');
+  }
 
   if (user.status === UserStatus.RESTRICTED) {
     throw new AppError(httpStatus.FORBIDDEN, 'User is Suspended');
@@ -388,9 +414,12 @@ const resendVerificationWithOtp = async (email: string) => {
 
 // ======================== CHANGE PASSWORD ========================
 const changePassword = async (user: any, payload: any) => {
-  const userData = await insecurePrisma.user.findUniqueOrThrow({
+  const userData = await insecurePrisma.user.findUnique({
     where: { email: user.email, status: 'ACTIVE' },
   });
+  if (!userData) {
+    throw new AppError(401, 'User not found');
+  }
 
   const isCorrectPassword = await bcrypt.compare(
     payload.oldPassword,
@@ -411,11 +440,13 @@ const changePassword = async (user: any, payload: any) => {
 
 // ======================== FORGOT PASSWORD ========================
 const forgetPassword = async (email: string) => {
-  const userData = await prisma.user.findUniqueOrThrow({
+  const userData = await prisma.user.findUnique({
     where: { email },
     select: { email: true, status: true, id: true, otpExpiry: true, otp: true },
   });
-
+  if (!userData) {
+    throw new AppError(401, 'User not found');
+  }
   if (userData.status === UserStatus.RESTRICTED) {
     throw new AppError(httpStatus.BAD_REQUEST, 'User has been suspended');
   }
@@ -475,6 +506,98 @@ const resetPassword = async (payload: { password: string; email: string }) => {
   return { message: 'Password reset successfully' };
 };
 
+const createFirebaseLogin = async (payload: any) => {
+  const userData = await prisma.user.findUnique({
+    where: {
+      email: payload.email,
+    },
+    include: {
+      athlete: true,
+    },
+  });
+
+  // 1️⃣ user not found — create new ATHLETE user only
+  if (!userData) {
+    const newUser = await prisma.user.create({
+      data: {
+        fullName: payload.fullName || '',
+        email: payload.email,
+        password: payload.password || '',
+        fcmToken: payload.fcmToken,
+        role: UserRoleEnum.ATHLETE,
+        isEmailVerified: true,
+        status: UserStatus.ACTIVE,
+      },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        role: true,
+        isEmailVerified: true,
+        status: true,
+      },
+    });
+
+    // Create athlete profile too
+    await prisma.athlete.create({
+      data: {
+        fullName: payload.fullName || '',
+        email: payload.email,
+        profile: payload.profile || '',
+        category: toStringArray(payload.category) || [],
+      },
+    });
+
+    const accessToken = await generateToken(
+      {
+        id: newUser.id,
+        name: newUser.fullName,
+        email: newUser.email,
+        role: newUser.role,
+      },
+      config.jwt.access_secret as Secret,
+      config.jwt.access_expires_in as SignOptions['expiresIn'],
+    );
+
+    return { user: newUser, accessToken };
+  }
+
+  // 2️⃣ user exists but not athlete — reject login
+  if (userData.role !== UserRoleEnum.ATHLETE) {
+    throw new AppError(
+      httpStatus.FORBIDDEN,
+      'Only athletes can log in using Firebase',
+    );
+  }
+
+  // 3️⃣ user exists and is athlete — update token
+  const updatedUser = await prisma.user.update({
+    where: { email: payload.email },
+    data: {
+      fcmToken: payload.fcmToken,
+    },
+    select: {
+      id: true,
+      fullName: true,
+      email: true,
+      role: true,
+    },
+  });
+
+  const accessToken = await generateToken(
+    {
+      id: updatedUser.id,
+      name: updatedUser.fullName,
+      email: updatedUser.email,
+      role: updatedUser.role,
+    },
+    config.jwt.access_secret as Secret,
+    config.jwt.access_expires_in as SignOptions['expiresIn'],
+  );
+
+  return { user: updatedUser, accessToken };
+};
+
 // ======================== EXPORT ========================
 export const AuthServices = {
   loginWithOtpFromDB,
@@ -485,4 +608,5 @@ export const AuthServices = {
   forgetPassword,
   resetPassword,
   verifyOtpCommon,
+  createFirebaseLogin,
 };

@@ -184,63 +184,6 @@ const sendNotifications = async (req: any) => {
   }
 };
 
-const sendToAdmins = async (req: any, title: string, body: string) => {
-  const admins = await prisma.user.findMany({
-    where: { role: 'ADMIN' },
-    select: { id: true },
-  });
-
-  if (!admins.length) throw new AppError(404, 'No admins found');
-
-  await prisma.notification.createMany({
-    data: admins.map(admin => ({
-      receiverId: admin.id,
-      senderId: req.user?.id || 'system',
-      title,
-      body,
-    })),
-  });
-
-  return {
-    message: 'In-app notifications created successfully for all admins',
-    count: admins.length,
-  };
-};
-
-const adminNotify = async (req: Request) => {
-  const userId = req.user.id;
-const notifications = await prisma.notification.findMany({
-  where: { receiverId: userId },
-  select: {
-    id: true,
-    receiverId: true,
-    senderId: true,
-    title: true,
-    body: true,
-    sender: {
-      select: {
-        email: true,
-        coach: {
-          select: {
-            fullName: true,
-            profile: true,
-          },
-        },
-      },
-    },
-  },
-  orderBy: { createdAt: 'desc' },
-});
-
-// const result = await prisma.coach.findUnique({
-//   where: {
-//     id: senderId,
-//   },
-// });
-
-  return notifications;
-};
-
 // Fetch notifications for the current user
 
 const getNotificationsFromDB = async (req: any) => {
@@ -316,24 +259,65 @@ const getSingleNotificationFromDB = async (
           select: {
             id: true,
             email: true,
+            coach: {
+              select: {
+                fullName: true,
+                profile: true,
+              },
+            },
           },
         },
       },
     });
 
+    if (!notification) {
+      throw new AppError(404, 'Notification not found');
+    }
+
     // Mark the notification as read
     const updatedNotification = await prisma.notification.update({
       where: { id: notificationId },
       data: { isRead: true },
-      include: {
-        sender: {
+    });
+
+    // ✅ ADDED: If sender is null, try to fetch Coach data using senderId
+    let senderData: any = null;
+
+    if (notification.sender) {
+      // Sender is a User
+      senderData = {
+        id: notification.sender.id,
+        email: notification.sender.email,
+        fullName: notification.sender.coach?.fullName || null,
+        profile: notification.sender.coach?.profile || null,
+      };
+    } else if (notification.senderId) {
+      // ✅ ADDED: senderId might be a Coach ID, try to fetch Coach
+      try {
+        const coach = await prisma.coach.findUnique({
+          where: { id: notification.senderId },
           select: {
             id: true,
+            fullName: true,
+            profile: true,
             email: true,
           },
-        },
-      },
-    });
+        });
+
+        if (coach) {
+          senderData = {
+            email: coach.email,
+            fullName: coach.fullName,
+            profile: coach.profile,
+          };
+        }
+      } catch (error) {
+        console.log(
+          'Could not fetch coach for senderId:',
+          notification.senderId,
+        );
+      }
+    }
 
     // Return the updated notification
     return {
@@ -342,16 +326,118 @@ const getSingleNotificationFromDB = async (
       body: updatedNotification.body,
       isRead: updatedNotification.isRead,
       createdAt: updatedNotification.createdAt,
-      sender: {
-        id: updatedNotification?.sender?.id,
-        email: updatedNotification?.sender?.email,
-      },
+      // ✅ MODIFIED: Return enriched sender data
+      sender: senderData,
     };
   } catch (error: any) {
     throw new AppError(500, error.message || 'Failed to fetch notification');
   }
 };
 
+const sendToAdmins = async (req: any, title: string, body: string) => {
+  const admins = await prisma.user.findMany({
+    where: { role: 'ADMIN' },
+    select: { id: true },
+  });
+
+  if (!admins.length) throw new AppError(404, 'No admins found');
+
+  await prisma.notification.createMany({
+    data: admins.map(admin => ({
+      receiverId: admin.id,
+      senderId: req.user?.id || 'system',
+      title,
+      body,
+    })),
+  });
+
+  return {
+    message: 'In-app notifications created successfully for all admins',
+    count: admins.length,
+  };
+};
+
+const adminNotify = async (req: Request) => {
+  const userId = req.user.id;
+
+  const notifications = await prisma.notification.findMany({
+    where: { receiverId: userId },
+    select: {
+      id: true,
+      receiverId: true,
+      senderId: true,
+      title: true,
+      body: true,
+      isRead: true,
+      createdAt: true,
+      sender: {
+        select: {
+          id: true,
+          email: true,
+          coach: {
+            select: {
+              fullName: true,
+              profile: true,
+            },
+          },
+        },
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  const unreadCount = await prisma.notification.count({
+    where: {
+      receiverId: userId,
+      isRead: false,
+    },
+  });
+
+  const enrichedNotifications = await Promise.all(
+    notifications.map(async notification => {
+      if (!notification.sender && notification.senderId) {
+        try {
+          const coach = await prisma.coach.findUnique({
+            where: { id: notification.senderId },
+            select: {
+              id: true,
+              fullName: true,
+              profile: true,
+              email: true,
+            },
+          });
+
+          if (coach) {
+            return {
+              ...notification,
+              sender: {
+                id: coach.id,
+                email: coach.email,
+                coach: {
+                  fullName: coach.fullName,
+                  profile: coach.profile,
+                },
+              },
+            };
+          }
+        } catch (error) {
+          console.log(
+            'Could not fetch coach for senderId:',
+            notification.senderId,
+          );
+        }
+      }
+
+      return notification;
+    }),
+  );
+
+  return {
+    notifications: enrichedNotifications,
+    unreadCount: unreadCount,
+    totalCount: notifications.length,
+  };
+};
 export const notificationServices = {
   sendSingleNotification,
   sendNotifications,

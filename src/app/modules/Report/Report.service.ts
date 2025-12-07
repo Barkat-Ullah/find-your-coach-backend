@@ -12,7 +12,7 @@ const createIntoDb = async (req: Request) => {
   const athlete = await prisma.athlete.findUnique({
     where: { email: athleteEmail },
     include: {
-      user: true, // Temporarily include to get user.id if reportedById requires it
+      user: true, 
     },
   });
 
@@ -24,7 +24,7 @@ const createIntoDb = async (req: Request) => {
   const coach = await prisma.coach.findUnique({
     where: { id: reportedToCoachId },
     include: {
-      user: true, // Temporarily include to get user.id if reportedUserId requires it
+      user: true, 
     },
   });
 
@@ -35,8 +35,8 @@ const createIntoDb = async (req: Request) => {
   // Create the report
   const report = await prisma.report.create({
     data: {
-      reportedById: athlete.user.id, // Use athlete's user.id
-      reportedUserId: coach.user.id, // Use coach's user.id
+      reportedById: athlete.user.id,
+      reportedUserId: coach.user.id,
       reason: reason as ReportReason,
       description: description || null,
       reportedByAthleteId: athlete.id,
@@ -121,7 +121,6 @@ const getAllReport = async (query: Record<string, any>) => {
         status: true,
         adminId: true,
         reportedByAthleteId: true,
-        reportedToCoachId: true,
         reportedByAthlete: {
           select: {
             fullName: true,
@@ -134,6 +133,7 @@ const getAllReport = async (query: Record<string, any>) => {
             },
           },
         },
+        reportedToCoachId: true,
         reportedToCoach: {
           select: {
             fullName: true,
@@ -147,12 +147,14 @@ const getAllReport = async (query: Record<string, any>) => {
           },
         },
         admin: {
-          include: {
+          select: {
+            id: true,
+            profile: true,
             user: {
               select: {
                 fullName: true,
                 email: true,
-                role:true
+                role: true,
               },
             },
           },
@@ -276,7 +278,6 @@ const updateIntoDb = async (id: string, req: Request) => {
     throw new AppError(httpStatus.NOT_FOUND, 'Report not found');
   }
 
-  // Toggle status: PENDING -> RESOLVED, RESOLVED -> PENDING
   const newStatus =
     existingReport.status === ReportStatus.PENDING
       ? ReportStatus.REVIEWED
@@ -332,6 +333,5 @@ export const ReportServices = {
   getMyReport,
   getReportByIdFromDB,
   updateIntoDb,
-
   softDeleteIntoDb,
 };
