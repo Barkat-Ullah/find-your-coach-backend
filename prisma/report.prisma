@@ -7,7 +7,7 @@ model Report {
     status              ReportStatus @default(PENDING)
     adminId             String?      @db.ObjectId
 
-    reportedByAthleteId String       @db.ObjectId 
+    reportedByAthleteId String       @db.ObjectId
     reportedToCoachId   String       @db.ObjectId
     reportedByAthlete   Athlete      @relation(fields: [reportedByAthleteId], references: [id])
     reportedToCoach     Coach        @relation(fields: [reportedToCoachId], references: [id])

@@ -97,7 +97,7 @@ const createIntoDb = async (req: Request) => {
   return {
     availability: {
       ...availability,
-      startTime: formatTimeWithAMPM(availability.startTime), 
+      startTime: formatTimeWithAMPM(availability.startTime),
       endTime: formatTimeWithAMPM(availability.endTime),
     },
     slotsCreated: createdSlots.length,
@@ -116,12 +116,19 @@ const getSlotsByDate = async (req: Request) => {
 
   const coach = await prisma.coach.findUnique({
     where: { email: coachMail },
+    include: {
+      specialty: {
+        select: {
+          title: true,
+        },
+      },
+    },
   });
 
   if (!coach) {
     throw new Error('Coach not found');
   }
-  
+
   const dateObj = new Date(slotDate as string);
 
   // Get availability for this date
@@ -142,29 +149,39 @@ const getSlotsByDate = async (req: Request) => {
     },
   });
 
-  if (!availability) {
-    return {
-      message: 'No slots found for this date',
-      slots: [],
-    };
-  }
+  // if (!availability) {
+  //   return {
+  //     message: 'No slots found for this date',
+  //     slots: [],
+  //   };
+  // }
+
+  // Dynamic nice message based on slots availability
+  const totalSlots = availability?.timeSlots?.length ?? 0;
+  const message =
+    totalSlots > 0
+      ? `Excellent! ${coach.fullName} has ${totalSlots} active slots available on ${slotDate}.`
+      : `Slots are not available on ${slotDate}.`;
 
   return {
     date: slotDate,
-    isActive: availability.isActive,
-    availabilityTime: {
-      coachId: availability.coach.id,
-      coachName: availability.coach.fullName,
-      startTime: formatTimeWithAMPM(availability.startTime),
-      endTime: formatTimeWithAMPM(availability.endTime),
+    isActive: availability?.isActive ?? false,
+    message,
+    coach: {
+      id: coach.id,
+      fullName: coach.fullName,
+      profile: coach.profile,
+      price: coach.price,
+      experience: coach.experience,
+      specialty: coach?.specialty?.title || null,
     },
-    slots: availability.timeSlots.map(slot => ({
+    slots: availability?.timeSlots.map(slot => ({
       id: slot.id,
       startTime: formatTimeWithAMPM(slot.startTime), // "10:00 AM"
       endTime: formatTimeWithAMPM(slot.endTime), // "11:00 AM"
       status: slot.status,
       isBooked: slot.isBooked,
-    })),
+    })) ?? [],
   };
 };
 
