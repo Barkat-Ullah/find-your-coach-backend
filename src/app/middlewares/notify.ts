@@ -1,4 +1,5 @@
 import { prisma } from '../utils/prisma';
+import admin from 'firebase-admin';
 
 interface CreateNotificationParams {
   receiverId: string;
@@ -31,6 +32,12 @@ export const createNotification = async (params: CreateNotificationParams) => {
             },
           },
           coach: {
+            select: {
+              fullName: true,
+              profile: true,
+            },
+          },
+          admin: {
             select: {
               fullName: true,
               profile: true,

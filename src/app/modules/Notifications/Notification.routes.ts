@@ -5,6 +5,17 @@ import { UserRoleEnum } from '@prisma/client';
 
 const router = express.Router();
 
+router.get(
+  '/',
+  auth(UserRoleEnum.ATHLETE, UserRoleEnum.COACH),
+  notificationController.getNotifications,
+);
+router.get(
+  '/:notificationId',
+  auth(UserRoleEnum.ATHLETE, UserRoleEnum.COACH),
+  notificationController.getSingleNotificationById,
+);
+
 router.post(
   '/send-notification/:userId',
   auth(),
@@ -25,11 +36,5 @@ router.get(
   notificationController.getAllNotificationsForAdmin,
 );
 
-router.get('/', auth(), notificationController.getNotifications);
-router.get(
-  '/:notificationId',
-  auth(),
-  notificationController.getSingleNotificationById,
-);
 
 export const notificationsRoute = router;

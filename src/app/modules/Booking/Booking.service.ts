@@ -2,12 +2,14 @@ import { Request } from 'express';
 import { PrismaClient, BookingStatus, UserRoleEnum } from '@prisma/client';
 import httpStatus from 'http-status';
 import AppError from '../../errors/AppError';
+import { createNotification } from '../../middlewares/notify';
 
 const prisma = new PrismaClient();
 
 const createIntoDb = async (req: Request) => {
   const athleteEmail = req.user.email;
-  const { coachId, timeSlotId, bookingDate, notes } = req.body;
+  const { coachId, timeSlotId, bookingDate, notes, locationName, lon, lat } =
+    req.body;
 
   // Validate required fields
   if (!coachId || !timeSlotId || !bookingDate) {
@@ -22,6 +24,7 @@ const createIntoDb = async (req: Request) => {
     // 1. Get athlete by email
     const athlete = await tx.athlete.findUnique({
       where: { email: athleteEmail },
+      include: { user: true },
     });
 
     if (!athlete) {
@@ -98,7 +101,10 @@ const createIntoDb = async (req: Request) => {
     }
 
     // 8. Verify coach exists
-    const coach = await tx.coach.findUnique({ where: { id: coachId } });
+    const coach = await tx.coach.findUnique({
+      where: { id: coachId },
+      include: { user: true },
+    });
 
     if (!coach) {
       throw new AppError(httpStatus.NOT_FOUND, 'Coach not found');
@@ -122,6 +128,9 @@ const createIntoDb = async (req: Request) => {
         bookingDate: bookingDateTime,
         status: BookingStatus.CONFIRMED,
         notes,
+        lat,
+        lon,
+        locationName,
       },
       include: {
         athlete: {
@@ -154,10 +163,19 @@ const createIntoDb = async (req: Request) => {
       },
     });
 
-    // 10. Update the time slot's isBooked flag (for template reference)
+    // 10. Update the time slot's isBooked flag
     await tx.timeSlot.update({
       where: { id: timeSlotId },
       data: { isBooked: true },
+    });
+
+    // ✅ NOTIFICATION #1: NEW BOOKING CREATED
+    // Send notification to coach when athlete creates a booking
+    await createNotification({
+      receiverId: coach.user.id, // Coach receives the notification
+      senderId: athlete.user.id, // Athlete is the sender
+      title: 'New Booking Received',
+      body: `${athlete.fullName} has booked a session with you on ${bookingDateTime.toLocaleDateString()} at ${slotStartTime.toLocaleTimeString()}`,
     });
 
     return booking;
@@ -302,6 +320,9 @@ const getMyBooking = async (email: string) => {
         status: true,
         rescheduleFromId: true,
         notes: true,
+        lat: true,
+        lon: true,
+        locationName: true,
         createdAt: true,
         coach: {
           select: {
@@ -310,14 +331,18 @@ const getMyBooking = async (email: string) => {
             fullName: true,
             phoneNumber: true,
             profile: true,
+            price: true,
             specialty: {
               select: {
-                id: true,
                 title: true,
-                icon: true,
               },
             },
             experience: true,
+            review: {
+              select: {
+                rating: true,
+              },
+            },
           },
         },
         timeSlot: {
@@ -346,8 +371,29 @@ const getMyBooking = async (email: string) => {
         bookingDate: 'desc',
       },
     });
+
+    // Calculate avgRating for each coach in bookings
+    bookings = bookings.map(booking => {
+      const coach = booking.coach;
+      const reviews = coach.review ?? [];
+      const totalRating = reviews.reduce(
+        (sum, review) => sum + review.rating,
+        0,
+      );
+      const avgRating =
+        coach.review.length > 0 ? totalRating / coach.review.length : 0;
+
+      return {
+        ...booking,
+        coach: {
+          ...coach,
+          avgRating,
+          review: undefined,
+        },
+      };
+    });
   } else if (coach) {
-    // Get bookings for coach
+    // Get bookings for coach (unchanged, unless you want athlete ratings too)
     bookings = await prisma.booking.findMany({
       where: {
         coachId: coach.id,
@@ -362,6 +408,9 @@ const getMyBooking = async (email: string) => {
         status: true,
         rescheduleFromId: true,
         notes: true,
+        lat: true,
+        lon: true,
+        locationName: true,
         createdAt: true,
         athlete: {
           select: {
@@ -439,6 +488,9 @@ const getMyFinishedBooking = async (email: string) => {
         status: true,
         rescheduleFromId: true,
         notes: true,
+        lat: true,
+        lot: true,
+        locationName: true,
         createdAt: true,
         coach: {
           select: {
@@ -447,11 +499,17 @@ const getMyFinishedBooking = async (email: string) => {
             fullName: true,
             phoneNumber: true,
             profile: true,
+            price: true,
             specialty: {
               select: {
                 id: true,
                 title: true,
                 icon: true,
+              },
+            },
+            review: {
+              select: {
+                rating: true,
               },
             },
             experience: true,
@@ -482,6 +540,27 @@ const getMyFinishedBooking = async (email: string) => {
       orderBy: {
         bookingDate: 'desc',
       },
+    });
+
+    // Calculate avgRating for each coach in bookings
+    bookings = bookings.map(booking => {
+      const coach = booking.coach;
+      const reviews = coach.review ?? [];
+      const totalRating = reviews.reduce(
+        (sum, review) => sum + review.rating,
+        0,
+      );
+      const avgRating =
+        coach.review.length > 0 ? totalRating / coach.review.length : 0;
+
+      return {
+        ...booking,
+        coach: {
+          ...coach,
+          avgRating,
+          review: undefined,
+        },
+      };
     });
   } else if (coach) {
     // Get bookings for coach
@@ -546,8 +625,14 @@ const cancelBooking = async (
 ) => {
   const user =
     userRole === UserRoleEnum.ATHLETE
-      ? await prisma.athlete.findUnique({ where: { email: userEmail } })
-      : await prisma.coach.findUnique({ where: { email: userEmail } });
+      ? await prisma.athlete.findUnique({
+          where: { email: userEmail },
+          include: { user: true },
+        })
+      : await prisma.coach.findUnique({
+          where: { email: userEmail },
+          include: { user: true },
+        });
 
   if (!user) {
     throw new AppError(httpStatus.NOT_FOUND, 'User not found');
@@ -561,7 +646,8 @@ const cancelBooking = async (
           id: true,
           fullName: true,
           email: true,
-          profile:true
+          profile: true,
+          user: true,
         },
       },
       coach: {
@@ -569,7 +655,9 @@ const cancelBooking = async (
           id: true,
           fullName: true,
           email: true,
-          profile:true
+          profile: true,
+          price: true,
+          user: true,
         },
       },
       timeSlot: {
@@ -658,6 +746,24 @@ const cancelBooking = async (
       });
     }
 
+    //  ✅  NOTIFICATION #2: BOOKING CANCELLED
+    //  Send notification to the other party (coach or athlete)
+    //  Determine receiver and sender based on who cancelled
+    // const receiverId = isAthlete
+    //   ? booking.coach.user.id // If athlete cancelled, notify coach
+    //   : booking.athlete.user.id; // If coach cancelled, notify athlete
+
+    // const senderName = isAthlete
+    //   ? booking.athlete.fullName
+    //   : booking.coach.fullName;
+
+    // await createNotification({
+    //   receiverId, // The other party receives the notification
+    //   senderId: user.user.id, // The canceller is the sender
+    //   title: 'Booking Cancelled',
+    //   body: `${senderName} has cancelled the booking scheduled for ${booking.bookingDate.toLocaleDateString()}`,
+    // });
+
     return updated;
   });
 
@@ -692,7 +798,7 @@ const finishBooking = async (
           id: true,
           fullName: true,
           email: true,
-          profile:true
+          profile: true,
         },
       },
       coach: {
@@ -700,7 +806,8 @@ const finishBooking = async (
           id: true,
           fullName: true,
           email: true,
-          profile:true
+          profile: true,
+          price: true,
         },
       },
       timeSlot: {
@@ -708,7 +815,6 @@ const finishBooking = async (
           id: true,
           startTime: true,
           endTime: true,
-          
         },
       },
     },
@@ -770,7 +876,7 @@ const finishBooking = async (
           id: true,
           fullName: true,
           email: true,
-          profile:true
+          profile: true,
         },
       },
       coach: {
@@ -778,7 +884,7 @@ const finishBooking = async (
           id: true,
           fullName: true,
           email: true,
-          profile:true
+          profile: true,
         },
       },
       timeSlot: {
@@ -808,8 +914,14 @@ const requestReschedule = async (
   console.log(userEmail);
   const user =
     userRole === UserRoleEnum.ATHLETE
-      ? await prisma.athlete.findUnique({ where: { email: userEmail } })
-      : await prisma.coach.findUnique({ where: { email: userEmail } });
+      ? await prisma.athlete.findUnique({
+          where: { email: userEmail },
+          include: { user: true },
+        })
+      : await prisma.coach.findUnique({
+          where: { email: userEmail },
+          include: { user: true },
+        });
 
   if (!user) {
     throw new AppError(httpStatus.NOT_FOUND, 'User not found');
@@ -819,8 +931,16 @@ const requestReschedule = async (
   const originalBooking = await prisma.booking.findUnique({
     where: { id: payload.bookingId },
     include: {
-      athlete: true,
-      coach: true,
+      athlete: {
+        include: {
+          user: true,
+        },
+      },
+      coach: {
+        include: {
+          user: true,
+        },
+      },
       timeSlot: {
         include: {
           availability: true,
@@ -944,7 +1064,7 @@ const requestReschedule = async (
             id: true,
             fullName: true,
             email: true,
-            profile:true
+            profile: true,
           },
         },
         coach: {
@@ -952,7 +1072,8 @@ const requestReschedule = async (
             id: true,
             fullName: true,
             email: true,
-            profile:true
+            profile: true,
+            price: true,
           },
         },
         timeSlot: {
@@ -972,6 +1093,24 @@ const requestReschedule = async (
       },
     });
 
+    // ✅ NOTIFICATION #4: RESCHEDULE REQUEST
+    // Send notification to the other party when reschedule is requested
+    // Determine receiver based on who requested the reschedule
+    // const receiverId = isAthlete
+    //   ? originalBooking.coach.user.id // If athlete requested, notify coach
+    //   : originalBooking.athlete.user.id; // If coach requested, notify athlete
+
+    // const senderName = isAthlete
+    //   ? originalBooking.athlete.fullName
+    //   : originalBooking.coach.fullName;
+
+    // await createNotification({
+    //   receiverId, // The other party receives the notification
+    //   senderId: user.user.id, // The requester is the sender
+    //   title: 'Reschedule Request',
+    //   body: `${senderName} has requested to reschedule the booking to ${newBookingDate.toLocaleDateString()} at ${new Date(newTimeSlot.startTime).toLocaleTimeString()}`,
+    // });
+
     return rescheduleBooking;
   });
 
@@ -989,8 +1128,14 @@ const respondToReschedule = async (
 ) => {
   const user =
     userRole === UserRoleEnum.ATHLETE
-      ? await prisma.athlete.findUnique({ where: { email: userEmail } })
-      : await prisma.coach.findUnique({ where: { email: userEmail } });
+      ? await prisma.athlete.findUnique({
+          where: { email: userEmail },
+          include: { user: true },
+        })
+      : await prisma.coach.findUnique({
+          where: { email: userEmail },
+          include: { user: true },
+        });
 
   if (!user) {
     throw new AppError(httpStatus.NOT_FOUND, 'User not found');
@@ -1000,8 +1145,12 @@ const respondToReschedule = async (
   const rescheduleRequest = await prisma.booking.findUnique({
     where: { id: payload.rescheduleFromId },
     include: {
-      athlete: true,
-      coach: true,
+      athlete: {
+        include: { user: true },
+      },
+      coach: {
+        include: { user: true },
+      },
       rescheduledFrom: {
         include: {
           timeSlot: {
@@ -1070,7 +1219,7 @@ const respondToReschedule = async (
               id: true,
               fullName: true,
               email: true,
-              profile:true
+              profile: true,
             },
           },
           coach: {
@@ -1078,7 +1227,7 @@ const respondToReschedule = async (
               id: true,
               fullName: true,
               email: true,
-              profile:true
+              profile: true,
             },
           },
           timeSlot: {
@@ -1089,6 +1238,27 @@ const respondToReschedule = async (
           rescheduledFrom: true,
         },
       });
+
+      // ✅ NOTIFICATION #5: RESCHEDULE REQUEST ACCEPTED
+      // Send notification to the requester when reschedule is accepted
+      // The person who requested the reschedule receives the notification
+      // Note: We need to determine who REQUESTED the reschedule (opposite of who ACCEPTED)
+      // Since we're in the respondToReschedule, the current user is accepting
+      // So the receiver is the opposite party
+      // const receiverId = isAthlete
+      //   ? rescheduleRequest.coach.user.id // If athlete accepted, notify coach (coach requested)
+      //   : rescheduleRequest.athlete.user.id; // If coach accepted, notify athlete (athlete requested)
+
+      // const responderName = isAthlete
+      //   ? rescheduleRequest.athlete.fullName
+      //   : rescheduleRequest.coach.fullName;
+
+      // await createNotification({
+      //   receiverId, // The requester receives the notification
+      //   senderId: user.user.id, // The person who accepted is the sender
+      //   title: 'Reschedule Request Accepted',
+      //   body: `${responderName} has accepted your reschedule request for ${rescheduleRequest.bookingDate.toLocaleDateString()}`,
+      // });
 
       return acceptedBooking;
     });
@@ -1113,6 +1283,7 @@ const respondToReschedule = async (
               id: true,
               fullName: true,
               email: true,
+              profile: true,
             },
           },
           coach: {
@@ -1120,6 +1291,8 @@ const respondToReschedule = async (
               id: true,
               fullName: true,
               email: true,
+              price: true,
+              profile: true,
             },
           },
           timeSlot: {
@@ -1130,6 +1303,24 @@ const respondToReschedule = async (
         },
       });
 
+      // ✅  NOTIFICATION #6: RESCHEDULE REQUEST REJECTED
+      // Send notification to the requester when reschedule is rejected
+      // Similar logic to acceptance - receiver is the opposite party
+      // const receiverId = isAthlete
+      //   ? rescheduleRequest.coach.user.id // If athlete rejected, notify coach (coach requested)
+      //   : rescheduleRequest.athlete.user.id; // If coach rejected, notify athlete (athlete requested)
+
+      // const responderName = isAthlete
+      //   ? rescheduleRequest.athlete.fullName
+      //   : rescheduleRequest.coach.fullName;
+
+      // await createNotification({
+      //   receiverId, // The requester receives the notification
+      //   senderId: user.user.id, // The person who rejected is the sender
+      //   title: 'Reschedule Request Rejected',
+      //   body: `${responderName} has rejected your reschedule request. The original booking remains active.`,
+      // });
+
       return {
         canceledRequest: await tx.booking.findUnique({
           where: { id: payload.rescheduleFromId },
@@ -1139,6 +1330,7 @@ const respondToReschedule = async (
                 id: true,
                 fullName: true,
                 email: true,
+                profile: true,
               },
             },
             coach: {
@@ -1146,6 +1338,8 @@ const respondToReschedule = async (
                 id: true,
                 fullName: true,
                 email: true,
+                price: true,
+                profile: true,
               },
             },
             timeSlot: {
@@ -1196,12 +1390,16 @@ const getPendingRescheduleRequests = async (
       bookingDate: true,
       status: true,
       notes: true,
+      lat: true,
+      lon: true,
+      locationName: true,
       createdAt: true,
       athlete: {
         select: {
           id: true,
           fullName: true,
           email: true,
+          profile: true,
         },
       },
       coach: {
@@ -1209,6 +1407,8 @@ const getPendingRescheduleRequests = async (
           id: true,
           fullName: true,
           email: true,
+          price: true,
+          profile: true,
         },
       },
       timeSlot: {

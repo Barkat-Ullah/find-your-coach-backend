@@ -22,7 +22,6 @@ const cloudinaryStorage = new CloudinaryStorage({
 });
 
 const cloudinaryUpload = multer({ storage: cloudinaryStorage });
-
  export const uploadToCloudinary = async (
   file: Express.Multer.File,
 ): Promise<{ Location: string; public_id: string }> => {
@@ -46,7 +45,7 @@ const cloudinaryUpload = multer({ storage: cloudinaryStorage });
 
         // ✅ Explicitly return `Location` and `public_id`
         resolve({
-          Location: result?.secure_url || '', 
+          Location: result?.secure_url || '',
           public_id: result?.public_id || '',
         });
       },

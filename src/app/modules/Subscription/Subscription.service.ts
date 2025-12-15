@@ -327,7 +327,7 @@ const updateIntoDb = async (id: string, data: Partial<any>) => {
 
   // -----------------------------
   // 4️⃣ FINAL DATABASE UPDATE
-  
+
   const result = await prisma.subscription.update({
     where: { id },
     data: updateData,
@@ -336,16 +336,26 @@ const updateIntoDb = async (id: string, data: Partial<any>) => {
   return result;
 };
 
+//
+const toggleSubscription = async (id: string) => {
+  // First, fetch the current subscription to check its state
+  const currentSubscription = await prisma.subscription.findUnique({
+    where: { id },
+  });
 
-// 
-const deleteIntoDb = async (id: string) => {
+  if (!currentSubscription) {
+    throw new Error('Subscription not found');
+  }
+
+  // Toggle the isActive field
   const subscription = await prisma.subscription.update({
     where: { id },
-    data: { isActive: false },
+    data: { isActive: !currentSubscription.isActive },
   });
 
   return subscription;
 };
+const deleteIntoDb = toggleSubscription;
 
 const deleteMySubscription = async (coachMail: string) => {
   const coach = await prisma.coach.findUnique({ where: { email: coachMail } });

@@ -36,7 +36,7 @@ const getAllCoach = async (
     whereConditions.push({
       OR: [
         { fullName: { contains: searchTerm, mode: 'insensitive' } },
-        { email: { contains: searchTerm, mode: 'insensitive' } },
+        { email: { equals: searchTerm, mode: 'insensitive' } },
         { address: { contains: searchTerm, mode: 'insensitive' } },
         {
           specialty: {
@@ -126,7 +126,6 @@ const getAllCoach = async (
           title: true,
         },
       },
-
       availabilities: {
         select: {
           id: true,
@@ -560,7 +559,7 @@ const getSpecifiCoaches = async (req: Request) => {
       price: coach.price,
       experience: coach.experience,
       expertise: coach.expertise,
-      specialty: coach?.specialty?.title || null,
+      specialty: coach?.specialty?.title || "Unknown",
     },
     rating: {
       avgRating: parseFloat(avgRating.toFixed(2)),
@@ -575,7 +574,7 @@ const getSpecifiCoaches = async (req: Request) => {
       endTime: formatTimeWithAMPM(slot.endTime),
       status: slot.status,
       isBooked: slot.isBooked,
-    })),
+    })) ?? [],
   };
 };
 

@@ -205,6 +205,38 @@ const getNotificationsFromDB = async (req: any) => {
           select: {
             id: true,
             email: true,
+            role: true,
+            // Include athlete details if sender is an athlete
+            athlete: {
+              select: {
+                id: true,
+                fullName: true,
+                profile: true,
+                email: true,
+              },
+            },
+            // Include coach details if sender is a coach
+            coach: {
+              select: {
+                id: true,
+                fullName: true,
+                profile: true,
+                email: true,
+                specialty: {
+                  select: {
+                    title: true,
+                  },
+                },
+              },
+            },
+            admin: {
+              select: {
+                id: true,
+                fullName: true,
+                profile: true,
+                email: true,
+              },
+            },
           },
         },
       },
@@ -213,25 +245,60 @@ const getNotificationsFromDB = async (req: any) => {
       },
     });
 
-    // Check if notifications exist
+    // Return formatted notifications with complete sender info
+    return notifications.map(notification => {
+      // Determine sender details based on role
+      let senderInfo = null;
 
-    // Return formatted notifications
-    return notifications.map(notification => ({
-      id: notification.id,
-      title: notification.title,
-      body: notification.body,
-      isRead: notification.isRead,
-      createdAt: notification.createdAt,
-      sender: {
-        id: notification?.sender?.id,
-      },
-    }));
+      if (notification.sender) {
+        if (
+          notification.sender.role === 'ATHLETE' &&
+          notification.sender.athlete
+        ) {
+          senderInfo = {
+            id: notification.sender.id,
+            email: notification.sender.email,
+            role: notification.sender.role,
+            fullName: notification.sender.athlete.fullName,
+            profile: notification.sender.athlete.profile,
+          };
+        } else if (
+          notification.sender.role === 'COACH' &&
+          notification.sender.coach
+        ) {
+          senderInfo = {
+            id: notification.sender.id,
+            email: notification.sender.email,
+            role: notification.sender.role,
+            fullName: notification.sender.coach.fullName,
+            profile: notification.sender.coach.profile,
+            specialty: notification.sender.coach.specialty?.title || null,
+          };
+        } else if (notification.sender.role === 'ADMIN') {
+          senderInfo = {
+            id: notification.sender.id,
+            email: notification.sender.email,
+            role: notification.sender.role,
+            fullName: notification.sender.admin?.fullName ?? 'Admin',
+            profile: notification.sender.admin?.profile ?? null,
+          };
+        }
+      }
+
+      return {
+        id: notification.id,
+        title: notification.title,
+        body: notification.body,
+        isRead: notification.isRead,
+        createdAt: notification.createdAt,
+        sender: senderInfo,
+      };
+    });
   } catch (error: any) {
     throw new AppError(500, error.message || 'Failed to fetch notifications');
   }
 };
 
-// Fetch a single notification and mark it as read
 const getSingleNotificationFromDB = async (
   req: any,
   notificationId: string,
@@ -248,21 +315,52 @@ const getSingleNotificationFromDB = async (
       throw new AppError(400, 'Notification ID is required');
     }
 
-    // Fetch the notification
+    // Fetch the notification with complete sender information
     const notification = await prisma.notification.findFirst({
       where: {
         id: notificationId,
         receiverId: userId,
       },
       include: {
+        // ✅ IMPROVED: Include complete sender information
         sender: {
           select: {
             id: true,
             email: true,
-            coach: {
+            role: true,
+            athlete: {
               select: {
+                id: true,
                 fullName: true,
                 profile: true,
+                email: true,
+                phoneNumber: true,
+              },
+            },
+            coach: {
+              select: {
+                id: true,
+                fullName: true,
+                profile: true,
+                email: true,
+                phoneNumber: true,
+                specialty: {
+                  select: {
+                    id: true,
+                    title: true,
+                    icon: true,
+                  },
+                },
+                experience: true,
+                price: true,
+              },
+            },
+            admin: {
+              select: {
+                id: true,
+                fullName: true,
+                profile: true,
+                email: true,
               },
             },
           },
@@ -275,58 +373,59 @@ const getSingleNotificationFromDB = async (
     }
 
     // Mark the notification as read
-    const updatedNotification = await prisma.notification.update({
+    await prisma.notification.update({
       where: { id: notificationId },
       data: { isRead: true },
     });
 
-    // ✅ ADDED: If sender is null, try to fetch Coach data using senderId
-    let senderData: any = null;
+    // Format sender data based on role
+    let senderData = null;
 
     if (notification.sender) {
-      // Sender is a User
-      senderData = {
-        id: notification.sender.id,
-        email: notification.sender.email,
-        fullName: notification.sender.coach?.fullName || null,
-        profile: notification.sender.coach?.profile || null,
-      };
-    } else if (notification.senderId) {
-      // ✅ ADDED: senderId might be a Coach ID, try to fetch Coach
-      try {
-        const coach = await prisma.coach.findUnique({
-          where: { id: notification.senderId },
-          select: {
-            id: true,
-            fullName: true,
-            profile: true,
-            email: true,
-          },
-        });
-
-        if (coach) {
-          senderData = {
-            email: coach.email,
-            fullName: coach.fullName,
-            profile: coach.profile,
-          };
-        }
-      } catch (error) {
-        console.log(
-          'Could not fetch coach for senderId:',
-          notification.senderId,
-        );
+      if (
+        notification.sender.role === 'ATHLETE' &&
+        notification.sender.athlete
+      ) {
+        senderData = {
+          id: notification.sender.id,
+          email: notification.sender.email,
+          role: notification.sender.role,
+          fullName: notification.sender.athlete.fullName,
+          profile: notification.sender.athlete.profile,
+          phoneNumber: notification.sender.athlete.phoneNumber,
+        };
+      } else if (
+        notification.sender.role === 'COACH' &&
+        notification.sender.coach
+      ) {
+        senderData = {
+          id: notification.sender.id,
+          email: notification.sender.email,
+          role: notification.sender.role,
+          fullName: notification.sender.coach.fullName,
+          profile: notification.sender.coach.profile,
+          phoneNumber: notification.sender.coach.phoneNumber,
+          specialty: notification.sender.coach.specialty,
+          experience: notification.sender.coach.experience,
+          price: notification.sender.coach.price,
+        };
+      } else if (notification.sender.role === 'ADMIN') {
+        senderData = {
+          id: notification.sender.id,
+          email: notification.sender.email,
+          role: notification.sender.role,
+          fullName: notification.sender.admin?.fullName ?? 'Admin',
+          profile: notification.sender.admin?.profile ?? null,
+        };
       }
     }
 
-    // Return the updated notification
     return {
-      id: updatedNotification.id,
-      title: updatedNotification.title,
-      body: updatedNotification.body,
-      isRead: updatedNotification.isRead,
-      createdAt: updatedNotification.createdAt,
-      // ✅ MODIFIED: Return enriched sender data
+      id: notification.id,
+      title: notification.title,
+      body: notification.body,
+      isRead: notification.isRead,
+      createdAt: notification.createdAt,
       sender: senderData,
     };
   } catch (error: any) {

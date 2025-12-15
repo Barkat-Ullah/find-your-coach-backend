@@ -156,7 +156,6 @@ const getSlotsByDate = async (req: Request) => {
   //   };
   // }
 
-  // Dynamic nice message based on slots availability
   const totalSlots = availability?.timeSlots?.length ?? 0;
   const message =
     totalSlots > 0

@@ -1,7 +1,7 @@
 model Coach {
-    id            String      @id @default(auto()) @map("_id") @db.ObjectId
+    id            String   @id @default(auto()) @map("_id") @db.ObjectId
     fullName      String
-    email         String      @unique
+    email         String   @unique
     profile       String?
     phoneNumber   String?
     experience    Int?
@@ -13,8 +13,8 @@ model Coach {
     address       String?
     price         Float?
 
-    gender        GenderEnum?
-    age           String?
+    gender GenderEnum?
+    age    String?
 
     // isDenied Boolean   @default(false)
     isRecommendedPayment Boolean   @default(false)
@@ -30,7 +30,6 @@ model Coach {
     stripeCustomerId  String?
     subscriptionStart DateTime?
     subscriptionEnd   DateTime?
-
 
     subscriptionId String?             @db.ObjectId
     subscription   Subscription?       @relation(fields: [subscriptionId], references: [id])
