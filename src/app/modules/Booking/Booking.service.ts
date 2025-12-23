@@ -590,6 +590,11 @@ const getMyFinishedBooking = async (email: string, status?: string) => {
         rescheduleFromId: true,
         notes: true,
         createdAt: true,
+        coach: {
+          select: {
+            price: true,
+          },
+        },
         athlete: {
           select: {
             id: true,
@@ -922,7 +927,7 @@ const requestReschedule = async (
     notes?: string;
   },
 ) => {
-  console.log(userEmail);
+  // console.log(userEmail);
   const user =
     userRole === UserRoleEnum.ATHLETE
       ? await prisma.athlete.findUnique({
