@@ -15,10 +15,9 @@ import sendResponse from '../../utils/sendResponse';
 import { generateToken } from '../../utils/generateToken';
 import { insecurePrisma, prisma } from '../../utils/prisma';
 import emailSender from './../../utils/sendMail';
-import {
-  deleteFromDigitalOceanAWS,
-  uploadToDigitalOceanAWS,
-} from '../../utils/uploadToDigitalOceanAWS';
+// import {
+//   uploadToDigitalOceanAWS,
+// } from '../../utils/uploadToDigitalOceanAWS';
 import { toStringArray } from './Auth.constants';
 import { uploadToCloudinary } from '../../utils/uploadToCloudinary';
 
@@ -103,13 +102,11 @@ const registerAthleteIntoDB = async (
   const otp = generateOTP().toString();
 
   let profileUrl: string | undefined;
-  const uploadedUrlsToCleanup: string[] = [];
 
   // if (profileFile) {
   //   try {
   //     const up = await uploadToDigitalOceanAWS(profileFile);
   //     profileUrl = up.Location;
-  //     uploadedUrlsToCleanup.push(profileUrl);
   //   } catch (err) {
   //     throw new AppError(
   //       httpStatus.INTERNAL_SERVER_ERROR,
@@ -157,14 +154,6 @@ const registerAthleteIntoDB = async (
       await emailSender(newUser.email, html, 'OTP Verification');
     });
   } catch (err) {
-    // cleanup uploaded files if any
-    if (uploadedUrlsToCleanup.length) {
-      await Promise.all(
-        uploadedUrlsToCleanup.map(u =>
-          deleteFromDigitalOceanAWS(u).catch(() => null),
-        ),
-      );
-    }
     throw new AppError(
       httpStatus.INTERNAL_SERVER_ERROR,
       'Failed to create athlete',
@@ -195,13 +184,11 @@ const registerCoachIntoDB = async (
 
   let profileUrl: string | undefined;
   let certificateUrl: string | undefined;
-  const uploadedUrlsToCleanup: string[] = [];
 
   // if (profileFile) {
   //   try {
   //     const up = await uploadToDigitalOceanAWS(profileFile);
   //     profileUrl = up.Location;
-  //     uploadedUrlsToCleanup.push(profileUrl);
   //   } catch (err) {
   //     throw new AppError(
   //       httpStatus.INTERNAL_SERVER_ERROR,
@@ -214,15 +201,7 @@ const registerCoachIntoDB = async (
   //   try {
   //     const up = await uploadToDigitalOceanAWS(certificateFile);
   //     certificateUrl = up.Location;
-  //     uploadedUrlsToCleanup.push(certificateUrl);
   //   } catch (err) {
-  //     if (uploadedUrlsToCleanup.length) {
-  //       await Promise.all(
-  //         uploadedUrlsToCleanup.map(u =>
-  //           deleteFromDigitalOceanAWS(u).catch(() => null),
-  //         ),
-  //       );
-  //     }
   //     throw new AppError(
   //       httpStatus.INTERNAL_SERVER_ERROR,
   //       'Failed to upload certificate',
@@ -230,17 +209,21 @@ const registerCoachIntoDB = async (
   //   }
   // }
 
-    if (profileFile) {
-      const result = await uploadToCloudinary(profileFile);
-      profileUrl = result.Location;
-    }
-    if (certificateFile) {
-      const result = await uploadToCloudinary(certificateFile);
-      certificateUrl = result.Location;
-    }
+  if (profileFile) {
+    const result = await uploadToCloudinary(profileFile);
+    profileUrl = result.Location;
+  }
+  if (certificateFile) {
+    const result = await uploadToCloudinary(certificateFile);
+    certificateUrl = result.Location;
+  }
+
+  // console.log('register coach', payload.expertise);
 
   // normalize expertise -> string[]
   const expertiseArr = toStringArray(payload.expertise);
+
+  // console.log('categories', expertiseArr);
 
   try {
     await prisma.$transaction(async tx => {
@@ -264,15 +247,15 @@ const registerCoachIntoDB = async (
           profile: profileUrl ?? undefined,
           phoneNumber: payload.phoneNumber ?? undefined,
           experience: payload.experience ?? undefined,
-          price: payload.price,
+          price: payload.price ?? null,
           location: payload.location ?? undefined,
           expertise: expertiseArr,
           certification: certificateUrl ?? payload.certification ?? undefined,
-          address: payload.address ?? undefined,
+          // address: payload.address ?? undefined,
           latitude: payload.latitude ? Number(payload.latitude) : undefined,
           longitude: payload.longitude ? Number(payload.longitude) : undefined,
           specialtyId: payload.specialtyId,
-          gender: payload.gender,
+          // gender: payload.gender,
         },
       });
 
@@ -280,14 +263,6 @@ const registerCoachIntoDB = async (
       await emailSender(newUser.email, html, 'OTP Verification');
     });
   } catch (err) {
-    console.log({err})
-    if (uploadedUrlsToCleanup.length) {
-      await Promise.all(
-        uploadedUrlsToCleanup.map(u =>
-          deleteFromDigitalOceanAWS(u).catch(() => null),
-        ),
-      );
-    }
     throw new AppError(
       httpStatus.INTERNAL_SERVER_ERROR,
       'Failed to create coach',
@@ -566,7 +541,7 @@ const createFirebaseLogin = async (payload: any) => {
   if (userData.role !== UserRoleEnum.ATHLETE) {
     throw new AppError(
       httpStatus.FORBIDDEN,
-      'Only athletes can log in using Firebase',
+      'Only athletes can log in using Google',
     );
   }
 

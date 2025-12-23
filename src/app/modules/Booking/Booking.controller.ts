@@ -24,7 +24,10 @@ const getMyBooking = catchAsync(async (req: Request, res: Response) => {
   });
 });
 const getMyFinishedBooking = catchAsync(async (req: Request, res: Response) => {
-  const result = await BookingServices.getMyFinishedBooking(req.user.email);
+  const result = await BookingServices.getMyFinishedBooking(
+    req.user.email,
+    req.query.status as string,
+  );
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
@@ -46,7 +49,7 @@ const getAllBooking = catchAsync(async (req: Request, res: Response) => {
 
 const requestReschedule = catchAsync(async (req: Request, res: Response) => {
   const { email, role } = req.user;
-  console.log(req.user)
+  console.log(req.user);
   const result = await BookingServices.requestReschedule(email, role, req.body);
 
   sendResponse(res, {
@@ -58,7 +61,7 @@ const requestReschedule = catchAsync(async (req: Request, res: Response) => {
 });
 
 const respondToReschedule = catchAsync(async (req: Request, res: Response) => {
-   const { email, role } = req.user;
+  const { email, role } = req.user;
   const result = await BookingServices.respondToReschedule(
     email,
     role,
@@ -103,7 +106,7 @@ const finishBooking = catchAsync(async (req: Request, res: Response) => {
 
 const getPendingRescheduleRequests = catchAsync(
   async (req: Request, res: Response) => {
-     const { email, role } = req.user;
+    const { email, role } = req.user;
     const result = await BookingServices.getPendingRescheduleRequests(
       email,
       role,

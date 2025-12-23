@@ -451,7 +451,7 @@ const getMyBooking = async (email: string) => {
   return bookings;
 };
 
-const getMyFinishedBooking = async (email: string) => {
+const getMyFinishedBooking = async (email: string, status?: string) => {
   // First, check if the user is an athlete or coach
   const athlete = await prisma.athlete.findUnique({
     where: { email },
@@ -468,9 +468,20 @@ const getMyFinishedBooking = async (email: string) => {
   let bookings;
 
   // Base where clause
-  const baseWhere = {
-    status: { in: [BookingStatus.FINISHED, BookingStatus.CANCELLED] },
-  };
+  const baseWhere: any = {};
+  if (status) {
+    // If status is provided, filter by that specific status
+    baseWhere.status = status as BookingStatus;
+  } else {
+    // If no status provided, show all finished/cancelled/rescheduled bookings
+    baseWhere.status = {
+      in: [
+        BookingStatus.FINISHED,
+        BookingStatus.CANCELLED,
+        BookingStatus.RESCHEDULED_ACCEPTED,
+      ],
+    };
+  }
 
   if (athlete) {
     // Get bookings for athlete
@@ -489,7 +500,7 @@ const getMyFinishedBooking = async (email: string) => {
         rescheduleFromId: true,
         notes: true,
         lat: true,
-        lot: true,
+        lon: true,
         locationName: true,
         createdAt: true,
         coach: {
@@ -544,7 +555,7 @@ const getMyFinishedBooking = async (email: string) => {
 
     // Calculate avgRating for each coach in bookings
     bookings = bookings.map(booking => {
-      const coach = booking.coach;
+      const coach = booking?.coach;
       const reviews = coach.review ?? [];
       const totalRating = reviews.reduce(
         (sum, review) => sum + review.rating,

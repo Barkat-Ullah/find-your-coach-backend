@@ -37,7 +37,7 @@ const getAllCoach = async (
       OR: [
         { fullName: { contains: searchTerm, mode: 'insensitive' } },
         { email: { equals: searchTerm, mode: 'insensitive' } },
-        { address: { contains: searchTerm, mode: 'insensitive' } },
+        { location: { contains: searchTerm, mode: 'insensitive' } },
         {
           specialty: {
             title: { contains: searchTerm, mode: 'insensitive' },
